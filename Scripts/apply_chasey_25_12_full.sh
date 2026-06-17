@@ -130,7 +130,7 @@ if grep -E '^CONFIG_PACKAGE_luci-app-(openclash|istorex|istore|store|aurora-conf
 fi
 
 echo "===== Airpi prebuild br_lan overlay check ====="
-if grep -RInE 'network\.br_lan|set network\.br_lan|delete network\..*ports' ../files ../Scripts . 2>/dev/null \
+if grep -RInE 'network\.br_lan|set network\.br_lan|delete network\..*ports' ../files ../Scripts 2>/dev/null \
   | grep -v airpi-old-package-deps.txt \
   | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#'; then
   echo "ERROR: unsafe br_lan overlay found"
