@@ -75,25 +75,25 @@ jobs:
           mkdir -p wrt/files
           cp -rf files/* wrt/files/
 
+      - name: Prepare OpenWrt cache dirs
+        run: |
+          mkdir -p wrt/dl wrt/.ccache
+          echo "CONFIG_CCACHE_DIR=${GITHUB_WORKSPACE}/wrt/.ccache" >> "$GITHUB_ENV"
+
+      - name: Cache OpenWrt dl and ccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            wrt/dl
+            wrt/.ccache
+          key: openwrt-airpi-${{ runner.os }}-${{ github.ref_name }}-dlccache-v1
+          restore-keys: |
+            openwrt-airpi-${{ runner.os }}-${{ github.ref_name }}-
+            openwrt-airpi-${{ runner.os }}-
+
       - name: Apply Airpi qmodem 25.12 full config
         working-directory: wrt
         run: |
-          - name: Prepare OpenWrt cache dirs
-            run: |
-              mkdir -p wrt/dl wrt/.ccache
-              echo "CONFIG_CCACHE_DIR=${GITHUB_WORKSPACE}/wrt/.ccache" >> "$GITHUB_ENV"
-
-          - name: Cache OpenWrt dl and ccache
-            uses: actions/cache@v4
-            with:
-              path: |
-                wrt/dl
-                wrt/.ccache
-              key: openwrt-airpi-${{ runner.os }}-${{ github.ref_name }}-${{ hashFiles('Scripts/**', 'Config/**', '.github/workflows/**') }}
-              restore-keys: |
-                openwrt-airpi-${{ runner.os }}-${{ github.ref_name }}-
-                openwrt-airpi-${{ runner.os }}-
-
           bash "$GITHUB_WORKSPACE/Scripts/apply_chasey_25_12_full.sh"
 
       - name: Verify selected Airpi AP3000M target config

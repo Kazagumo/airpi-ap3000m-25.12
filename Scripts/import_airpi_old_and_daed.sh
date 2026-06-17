@@ -65,12 +65,14 @@ echo "===== Airpi import: relocate and preflight Airpi GPIO fan kernel package =
 mkdir -p package/kernel
 rm -rf package/kernel/Airpi-gpio-fan
 
-if [ ! -d "package/kernel/Airpi-gpio-fan" ]; then
-  echo "ERROR: imported Airpi-gpio-fan directory missing: package/kernel/Airpi-gpio-fan"
+if [ ! -d "$DST_DIR/Airpi-gpio-fan" ]; then
+  echo "ERROR: imported Airpi-gpio-fan directory missing: $DST_DIR/Airpi-gpio-fan"
+  echo "DEBUG: imported Airpi package candidates:"
+  find "$DST_DIR" -maxdepth 5 \( -iname "*fan*" -o -iname "*Airpi*" -o -iname "*.zip" \) 2>/dev/null | sort || true
   exit 1
 fi
 
-cp -a "package/kernel/Airpi-gpio-fan" package/kernel/Airpi-gpio-fan
+cp -a "$DST_DIR/Airpi-gpio-fan" package/kernel/Airpi-gpio-fan
 
 if [ ! -f package/kernel/Airpi-gpio-fan/src/Airpi-gpio-fan.c ]; then
   echo "ERROR: Airpi-gpio-fan.c missing"
