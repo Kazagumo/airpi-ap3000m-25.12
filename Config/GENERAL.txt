@@ -387,9 +387,6 @@ CONFIG_WARP_VERSION=2
 
 CONFIG_WED_HW_RRO_SUPPORT=y
 
-# ===== AIRPI FIX: DNSMASQ DHCP/DNS =====
-CONFIG_PACKAGE_dnsmasq=y
-# ===== END AIRPI FIX: DNSMASQ DHCP/DNS =====
 
 # ===== AIRPI FIX: DAED EBPF BTF REQUIREMENTS =====
 CONFIG_DEVEL=y
@@ -403,3 +400,8 @@ CONFIG_BPF_TOOLCHAIN_HOST=y
 CONFIG_KERNEL_XDP_SOCKETS=y
 CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
 # ===== END AIRPI FIX: DAED EBPF BTF REQUIREMENTS =====
+
+# ===== AIRPI FIX: DNSMASQ-FULL DHCP/DNS =====
+# Use dnsmasq-full instead of dnsmasq to avoid duplicate file conflicts.
+CONFIG_PACKAGE_dnsmasq-full=y
+# ===== END AIRPI FIX: DNSMASQ-FULL DHCP/DNS =====
