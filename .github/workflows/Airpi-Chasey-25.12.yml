@@ -60,37 +60,37 @@ jobs:
           fi
 
           cat >> .config <<'EOF'
-CONFIG_TARGET_mediatek=y
-CONFIG_TARGET_mediatek_filogic=y
-CONFIG_TARGET_mediatek_filogic_DEVICE_airpi_ap3000m=y
-CONFIG_CCACHE=y
+          CONFIG_TARGET_mediatek=y
+          CONFIG_TARGET_mediatek_filogic=y
+          CONFIG_TARGET_mediatek_filogic_DEVICE_airpi_ap3000m=y
+          CONFIG_CCACHE=y
 
-CONFIG_PACKAGE_luci=y
-CONFIG_PACKAGE_luci-base=y
-CONFIG_PACKAGE_luci-compat=y
-CONFIG_PACKAGE_luci-app-firewall=y
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-base=y
+          CONFIG_PACKAGE_luci-compat=y
+          CONFIG_PACKAGE_luci-app-firewall=y
 
-CONFIG_PACKAGE_qmodem=y
-CONFIG_PACKAGE_luci-app-qmodem-next=y
+          CONFIG_PACKAGE_qmodem=y
+          CONFIG_PACKAGE_luci-app-qmodem-next=y
 
-CONFIG_PACKAGE_luci-app-Airpifanctrl=y
-CONFIG_PACKAGE_kmod-Airpi-gpio-fan=y
-CONFIG_PACKAGE_luci-app-mtk=y
-CONFIG_PACKAGE_luci-app-mtwifi-cfg=y
-CONFIG_PACKAGE_mtwifi-cfg-ucode=y
-CONFIG_PACKAGE_luci-app-eqos-mtk=y
-CONFIG_PACKAGE_luci-app-turboacc-mtk=y
+          CONFIG_PACKAGE_luci-app-Airpifanctrl=y
+          CONFIG_PACKAGE_kmod-Airpi-gpio-fan=y
+          CONFIG_PACKAGE_luci-app-mtk=y
+          CONFIG_PACKAGE_luci-app-mtwifi-cfg=y
+          CONFIG_PACKAGE_mtwifi-cfg-ucode=y
+          CONFIG_PACKAGE_luci-app-eqos-mtk=y
+          CONFIG_PACKAGE_luci-app-turboacc-mtk=y
 
-CONFIG_PACKAGE_daed=y
-CONFIG_PACKAGE_luci-app-daede=y
+          CONFIG_PACKAGE_daed=y
+          CONFIG_PACKAGE_luci-app-daede=y
 
-# CONFIG_PACKAGE_luci-app-openclash is not set
-# CONFIG_PACKAGE_luci-app-istorex is not set
-# CONFIG_PACKAGE_luci-app-istore is not set
-# CONFIG_PACKAGE_luci-app-store is not set
-# CONFIG_PACKAGE_luci-app-aurora-config is not set
-# CONFIG_PACKAGE_luci-theme-aurora is not set
-EOF
+          # CONFIG_PACKAGE_luci-app-openclash is not set
+          # CONFIG_PACKAGE_luci-app-istorex is not set
+          # CONFIG_PACKAGE_luci-app-istore is not set
+          # CONFIG_PACKAGE_luci-app-store is not set
+          # CONFIG_PACKAGE_luci-app-aurora-config is not set
+          # CONFIG_PACKAGE_luci-theme-aurora is not set
+          EOF
 
           echo "===== preflight: make defconfig ====="
           make defconfig
