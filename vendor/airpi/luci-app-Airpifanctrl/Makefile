@@ -13,3 +13,5 @@ LUCI_DEPENDS:=+kmod-Airpi-gpio-fan
 include $(TOPDIR)/feeds/luci/luci.mk
 
 # $(eval $(call BuildPackage,luci-app-Airpifanctrl)
+
+# call BuildPackage - OpenWrt buildroot signature
