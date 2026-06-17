@@ -65,35 +65,68 @@ echo "===== Airpi import: relocate and preflight Airpi GPIO fan kernel package =
 mkdir -p package/kernel
 rm -rf package/kernel/Airpi-gpio-fan
 
-FAN_SRC=""
-
-if [ -f "package/kernel/Airpi-gpio-fan/Makefile" ]; then
-  FAN_SRC="package/kernel/Airpi-gpio-fan"
+if [ -d "$DST_DIR/Airpi-gpio-fan" ]; then
+  cp -a "$DST_DIR/Airpi-gpio-fan" package/kernel/Airpi-gpio-fan
 else
-  FAN_MK="$(find "package/kernel/Airpi-gpio-fan" "$DST_DIR/luci-app-Airpifanctrl" -path "*/Airpi-gpio-fan/Makefile" 2>/dev/null | head -n1 || true)"
-  [ -n "$FAN_MK" ] && FAN_SRC="$(dirname "$FAN_MK")"
-fi
-
-if [ -z "$FAN_SRC" ]; then
-  FAN_ZIP="$(find "$DST_DIR/luci-app-Airpifanctrl" -type f \( -iname "*Airpi*gpi*fan*.zip" -o -iname "*Airpi-gpio-fan*.zip" -o -iname "*fan*.zip" \) 2>/dev/null | head -n1 || true)"
-  if [ -n "$FAN_ZIP" ]; then
-    TMP_FAN="/tmp/airpi-gpio-fan-unzip"
-    rm -rf "$TMP_FAN"
-    mkdir -p "$TMP_FAN"
-    unzip -q "$FAN_ZIP" -d "$TMP_FAN"
-    FAN_MK="$(find "$TMP_FAN" -path "*/Airpi-gpio-fan/Makefile" 2>/dev/null | head -n1 || true)"
-    [ -n "$FAN_MK" ] && FAN_SRC="$(dirname "$FAN_MK")"
-  fi
-fi
-
-if [ -z "$FAN_SRC" ]; then
-  echo "ERROR: cannot find Airpi-gpio-fan Makefile after import"
-  echo "DEBUG: candidate files:"
-  find "$DST_DIR" -maxdepth 6 \( -iname "*fan*" -o -iname "*Airpi*" -o -iname "*.zip" \) 2>/dev/null || true
+  echo "ERROR: imported Airpi-gpio-fan directory missing: $DST_DIR/Airpi-gpio-fan"
   exit 1
 fi
 
-cp -a "$FAN_SRC" package/kernel/Airpi-gpio-fan
+if [ ! -f package/kernel/Airpi-gpio-fan/src/Airpi-gpio-fan.c ]; then
+  echo "ERROR: Airpi-gpio-fan.c missing"
+  find package/kernel/Airpi-gpio-fan -maxdepth 4 -type f 2>/dev/null || true
+  exit 1
+fi
+
+if [ ! -f package/kernel/Airpi-gpio-fan/src/Makefile ]; then
+  cat > package/kernel/Airpi-gpio-fan/src/Makefile <<FAN_SRC_MK
+obj-m += Airpi-gpio-fan.o
+FAN_SRC_MK
+fi
+
+if [ ! -f package/kernel/Airpi-gpio-fan/Makefile ]; then
+  cat > package/kernel/Airpi-gpio-fan/Makefile <<FAN_TOP_MK
+include \$(TOPDIR)/rules.mk
+include \$(INCLUDE_DIR)/kernel.mk
+
+PKG_NAME:=Airpi-gpio-fan
+PKG_VERSION:=1.0
+PKG_RELEASE:=1
+
+include \$(INCLUDE_DIR)/package.mk
+
+define KernelPackage/Airpi-gpio-fan
+  SUBMENU:=Other modules
+  TITLE:=GPIO PWM Fan Control Driver
+  FILES:=\$(PKG_BUILD_DIR)/Airpi-gpio-fan.ko
+  AUTOLOAD:=\$(call AutoLoad,90,Airpi-gpio-fan)
+  KCONFIG:=
+endef
+
+define KernelPackage/Airpi-gpio-fan/description
+  Kernel module for PWM fan control using GPIO
+endef
+
+define Build/Prepare
+    mkdir -p \$(PKG_BUILD_DIR)
+    \$(CP) ./src/* \$(PKG_BUILD_DIR)/
+endef
+
+MAKE_OPTS:= \\
+    ARCH="\$(LINUX_KARCH)" \\
+    CROSS_COMPILE="\$(TARGET_CROSS)" \\
+    KDIR="\$(LINUX_DIR)"
+
+define Build/Compile
+    \$(MAKE) -C "\$(LINUX_DIR)" \\
+        \$(MAKE_OPTS) \\
+        M="\$(PKG_BUILD_DIR)" \\
+        modules
+endef
+
+\$(eval \$(call KernelPackage,Airpi-gpio-fan))
+FAN_TOP_MK
+fi
 
 if ! grep -q "KernelPackage/Airpi-gpio-fan" package/kernel/Airpi-gpio-fan/Makefile; then
   echo "ERROR: package/kernel/Airpi-gpio-fan/Makefile is not KernelPackage/Airpi-gpio-fan"
