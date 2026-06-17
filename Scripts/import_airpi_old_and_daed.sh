@@ -60,6 +60,34 @@ copy_pkg "mtk-smp"
 copy_pkg "wrtbwmon"
 copy_pkg "luci-app-wrtbwmon"
 
+
+echo "===== Airpi import: relocate Airpi GPIO fan kernel package ====="
+mkdir -p package/kernel
+rm -rf package/kernel/Airpi-gpio-fan
+
+if [ -d "$DST_DIR/Airpi-gpio-fan" ]; then
+  mv "$DST_DIR/Airpi-gpio-fan" package/kernel/Airpi-gpio-fan
+fi
+
+if [ ! -f package/kernel/Airpi-gpio-fan/Makefile ]; then
+  FAN_ZIP="$(find "$DST_DIR/luci-app-Airpifanctrl" -type f -iname "*Airpi*gpi*fan*.zip" -o -iname "*Airpi-gpio-fan*.zip" 2>/dev/null | head -n1 || true)"
+  if [ -n "$FAN_ZIP" ]; then
+    TMP_FAN="/tmp/airpi-gpio-fan-unzip"
+    rm -rf "$TMP_FAN"
+    mkdir -p "$TMP_FAN"
+    unzip -q "$FAN_ZIP" -d "$TMP_FAN"
+    FAN_MK="$(find "$TMP_FAN" -path "*/Airpi-gpio-fan/Makefile" | head -n1 || true)"
+    if [ -n "$FAN_MK" ]; then
+      cp -a "$(dirname "$FAN_MK")" package/kernel/Airpi-gpio-fan
+    fi
+  fi
+fi
+
+if [ ! -f package/kernel/Airpi-gpio-fan/Makefile ]; then
+  echo "ERROR: package/kernel/Airpi-gpio-fan/Makefile not found"
+  exit 1
+fi
+
 echo "===== Airpi import: hard block unwanted packages from copied tree ====="
 find "$DST_DIR" -maxdepth 2 -type d | grep -Ei 'openclash|istore|store|aurora' && {
   echo "ERROR: forbidden package directory copied"
@@ -105,7 +133,7 @@ echo "===== Airpi import: update/install daed feed ====="
 
 echo "===== Airpi import: required package directories check ====="
 for d in \
-  "$DST_DIR/Airpi-gpio-fan" \
+  "package/kernel/Airpi-gpio-fan" \
   "$DST_DIR/luci-app-Airpifanctrl" \
   "$DST_DIR/luci-app-mtk" \
   "$DST_DIR/mii_mgr" \
