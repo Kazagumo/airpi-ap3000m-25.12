@@ -1,4 +1,4 @@
-## by Manper 20250520
+# by Manper 20250520
 
 include $(TOPDIR)/rules.mk
 
@@ -12,4 +12,4 @@ LUCI_DEPENDS:=+kmod-Airpi-gpio-fan
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
-## $(eval $(call BuildPackage,luci-app-Airpifanctrl)
+# $(eval $(call BuildPackage,luci-app-Airpifanctrl)

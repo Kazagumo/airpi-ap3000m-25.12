@@ -16,24 +16,24 @@ define KernelPackage/Airpi-gpio-fan
 endef
 
 define KernelPackage/Airpi-gpio-fan/description
-Kernel module for PWM fan control using GPIO
+  Kernel module for PWM fan control using GPIO
 endef
 
 define Build/Prepare
-    mkdir -p $(PKG_BUILD_DIR)
-    $(CP) ./src/* $(PKG_BUILD_DIR)/
+	mkdir -p $(PKG_BUILD_DIR)
+	$(CP) ./src/* $(PKG_BUILD_DIR)/
 endef
 
 MAKE_OPTS:= \
-    ARCH="$(LINUX_KARCH)" \
-    CROSS_COMPILE="$(TARGET_CROSS)" \
-    KDIR="$(LINUX_DIR)"
+	ARCH="$(LINUX_KARCH)" \
+	CROSS_COMPILE="$(TARGET_CROSS)" \
+	KDIR="$(LINUX_DIR)"
 
 define Build/Compile
-    $(MAKE) -C "$(LINUX_DIR)" \
-        $(MAKE_OPTS) \
-        M="$(PKG_BUILD_DIR)" \
-        modules
+	$(MAKE) -C "$(LINUX_DIR)" \
+		$(MAKE_OPTS) \
+		M="$(PKG_BUILD_DIR)" \
+		modules
 endef
 
 $(eval $(call KernelPackage,Airpi-gpio-fan))
