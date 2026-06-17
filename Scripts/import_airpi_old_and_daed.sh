@@ -38,9 +38,6 @@ copy_pkg() {
 }
 
 # Airpi hardware / fan
-copy_pkg "Airpi-gpio-fan"
-copy_pkg "luci-app-Airpifanctrl"
-
 # MTK management / switch / low-level tools
 copy_pkg "luci-app-mtk"
 copy_pkg "mii_mgr"
@@ -61,16 +58,20 @@ copy_pkg "wrtbwmon"
 copy_pkg "luci-app-wrtbwmon"
 
 
-echo "===== Airpi import: install vendored Airpi GPIO fan packages ====="
+echo "===== Airpi import: install own Airpifanctrl special-case packages ====="
 AIRPI_VENDOR_DIR="${GITHUB_WORKSPACE:-..}/vendor/airpi"
 
-if [ ! -d "$AIRPI_VENDOR_DIR/Airpi-gpio-fan" ]; then
-  echo "ERROR: vendored Airpi-gpio-fan missing: $AIRPI_VENDOR_DIR/Airpi-gpio-fan"
+# Airpifanctrl is a special case:
+# do NOT use old padavanonly source for luci-app-Airpifanctrl or Airpi-gpio-fan.
+# Use only the vendored packages extracted from uploaded zips.
+
+if [ ! -d "$AIRPI_VENDOR_DIR/luci-app-Airpifanctrl" ]; then
+  echo "ERROR: own vendored luci-app-Airpifanctrl missing: $AIRPI_VENDOR_DIR/luci-app-Airpifanctrl"
   exit 1
 fi
 
-if [ ! -d "$AIRPI_VENDOR_DIR/luci-app-Airpifanctrl" ]; then
-  echo "ERROR: vendored luci-app-Airpifanctrl missing: $AIRPI_VENDOR_DIR/luci-app-Airpifanctrl"
+if [ ! -d "$AIRPI_VENDOR_DIR/Airpi-gpio-fan" ]; then
+  echo "ERROR: own vendored Airpi-gpio-fan missing: $AIRPI_VENDOR_DIR/Airpi-gpio-fan"
   exit 1
 fi
 
@@ -81,6 +82,9 @@ rm -rf "$DST_DIR/luci-app-Airpifanctrl"
 
 cp -a "$AIRPI_VENDOR_DIR/Airpi-gpio-fan" package/kernel/Airpi-gpio-fan
 cp -a "$AIRPI_VENDOR_DIR/luci-app-Airpifanctrl" "$DST_DIR/luci-app-Airpifanctrl"
+
+# remove accidental nested zips from build tree
+find "$DST_DIR/luci-app-Airpifanctrl" -type f -iname "*.zip" -delete 2>/dev/null || true
 
 if [ ! -f package/kernel/Airpi-gpio-fan/Makefile ]; then
   echo "ERROR: package/kernel/Airpi-gpio-fan/Makefile missing"
@@ -114,7 +118,13 @@ if ! grep -q "LUCI_DEPENDS:=+kmod-Airpi-gpio-fan" "$DST_DIR/luci-app-Airpifanctr
   exit 1
 fi
 
-echo "OK: vendored Airpi fan packages installed"
+if ! grep -q 'include $(TOPDIR)/feeds/luci/luci.mk' "$DST_DIR/luci-app-Airpifanctrl/Makefile"; then
+  echo "ERROR: luci-app-Airpifanctrl Makefile is not using luci.mk as provided"
+  sed -n "1,120p" "$DST_DIR/luci-app-Airpifanctrl/Makefile" || true
+  exit 1
+fi
+
+echo "OK: own Airpifanctrl special-case packages installed"
 
 echo "===== Airpi import: hard block unwanted packages from copied tree ====="
 find "$DST_DIR" -maxdepth 2 -type d | grep -Ei 'openclash|istore|store|aurora' && {
