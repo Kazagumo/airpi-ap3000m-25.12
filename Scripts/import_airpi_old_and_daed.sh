@@ -13,7 +13,11 @@ DEP_REPORT="$PWD/airpi-old-package-deps.txt"
 
 echo "===== Airpi import: clone old source ====="
 rm -rf "$OLD_DIR"
-git clone --depth 1 -b "$OLD_BRANCH" "$OLD_REPO" "$OLD_DIR"
+git clone --depth 1 --filter=blob:none --sparse -b "$OLD_BRANCH" "$OLD_REPO" "$OLD_DIR"
+(
+  cd "$OLD_DIR" || exit 1
+  git sparse-checkout set package/mtk/applications
+)
 
 echo "===== Airpi import: copy selected old packages ====="
 mkdir -p "$DST_DIR"

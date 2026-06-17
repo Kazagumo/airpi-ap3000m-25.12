@@ -136,7 +136,7 @@ jobs:
           }
 
           echo "===== forbidden packages ====="
-          if grep -E 'luci-app-openclash|luci-app-istorex|luci-app-istore|luci-app-store|luci-theme-aurora' "$MANIFEST"; then
+          if grep -E 'luci-app-openclash|luci-app-istorex|luci-app-istore|luci-app-store|luci-app-aurora-config|luci-theme-aurora' "$MANIFEST"; then
             echo "ERROR: forbidden package found in manifest"
             exit 1
           fi
