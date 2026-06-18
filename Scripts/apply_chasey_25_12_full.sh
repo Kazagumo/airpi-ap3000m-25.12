@@ -40,7 +40,7 @@ echo "===== feeds install: selected packages only ====="
   luci-app-ttyd luci-app-upnp luci-app-autoreboot \
   luci-app-diskman luci-app-filemanager luci-app-package-manager \
   luci-app-argon-config luci-theme-argon luci-theme-bootstrap \
-  luci-app-mtk luci-app-mtwifi-cfg luci-app-turboacc-mtk \
+  luci-app-mtwifi-cfg luci-app-turboacc-mtk \
   wrtbwmon luci-app-wrtbwmon lua-cjson ndisc6 \
   || true
 
@@ -100,7 +100,6 @@ CONFIG_PACKAGE_mtk-smp=y
 
 CONFIG_PACKAGE_luci-app-Airpifanctrl=y
 CONFIG_PACKAGE_kmod-Airpi-gpio-fan=y
-CONFIG_PACKAGE_luci-app-mtk=y
 
 CONFIG_PACKAGE_wrtbwmon=y
 CONFIG_PACKAGE_luci-app-wrtbwmon=y
@@ -169,7 +168,6 @@ echo "===== Airpi required config check ====="
 for sym in \
   CONFIG_PACKAGE_luci-app-Airpifanctrl \
   CONFIG_PACKAGE_kmod-Airpi-gpio-fan \
-  CONFIG_PACKAGE_luci-app-mtk \
   CONFIG_PACKAGE_luci-app-mtwifi-cfg \
   CONFIG_PACKAGE_luci-app-eqos-mtk \
   CONFIG_PACKAGE_luci-app-turboacc-mtk \
