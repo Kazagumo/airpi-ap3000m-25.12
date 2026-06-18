@@ -1,0 +1,44 @@
+#!/bin/sh /etc/rc.common
+START=99
+STOP=10
+
+start() {
+  [ -f /sys/class/thermal/thermal_zone0/mode ] && echo disabled > /sys/class/thermal/thermal_zone0/mode 2>/dev/null
+  [ -f /etc/fanvall ] || echo 9 > /etc/fanvall
+  [ -f /etc/fanvallv.conf ] || echo CPU温度 > /etc/fanvallv.conf
+  [ -f /usr/bin/fanspeed.conf ] || echo 128 > /usr/bin/fanspeed.conf
+
+  mode="$(cat /etc/fanvall 2>/dev/null)"
+  case "$mode" in
+    0) /usr/bin/airpi-fan-set silent ;;
+    1) /usr/bin/airpi-fan-set low ;;
+    2) /usr/bin/airpi-fan-set normal ;;
+    3) /usr/bin/airpi-fan-set turbo ;;
+    9) /usr/bin/airpi-fan-set smart ;;
+    999)
+      speed="$(cat /usr/bin/fanspeed.conf 2>/dev/null)"
+      /usr/bin/airpi-fan-set manual "${speed:-128}"
+      ;;
+    *)
+      echo 9 > /etc/fanvall
+      /usr/bin/airpi-fan-set smart
+      ;;
+  esac
+
+  logger -t Airpifanctrl "started mode=$(cat /etc/fanvall 2>/dev/null), source=$(cat /etc/fanvallv.conf 2>/dev/null)"
+}
+
+stop() {
+  for p in $(ps w | grep '/usr/bin/fancts.sh' | grep -v grep | awk '{print $1}'); do
+    kill -9 "$p" 2>/dev/null
+  done
+  rm -rf /var/run/fancts.lockdir
+  rm -f /var/run/fancts.pid /tmp/fancts.lock
+  logger -t Airpifanctrl "stopped"
+}
+
+restart() {
+  stop
+  sleep 1
+  start
+}

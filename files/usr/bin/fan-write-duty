@@ -1,0 +1,56 @@
+#!/bin/sh
+v="$1"
+case "$v" in
+  ''|*[!0-9]*) exit 1 ;;
+esac
+[ "$v" -lt 0 ] && v=0
+[ "$v" -gt 255 ] && v=255
+
+PWM=""
+COOL=""
+
+for d in /sys/class/hwmon/hwmon*; do
+  [ -f "$d/name" ] || continue
+  name="$(cat "$d/name" 2>/dev/null)"
+  if [ "$name" = "pwmfan" ] && [ -f "$d/pwm1" ]; then
+    PWM="$d/pwm1"
+    break
+  fi
+done
+
+for c in /sys/class/thermal/cooling_device*; do
+  [ -f "$c/type" ] || continue
+  type="$(cat "$c/type" 2>/dev/null)"
+  if [ "$type" = "pwm-fan" ]; then
+    COOL="$c"
+    break
+  fi
+done
+
+if [ "$v" -ge 240 ]; then
+  state=3
+elif [ "$v" -ge 180 ]; then
+  state=2
+elif [ "$v" -ge 100 ]; then
+  state=1
+else
+  state=0
+fi
+
+if [ -n "$COOL" ] && [ -f "$COOL/max_state" ] && [ -f "$COOL/cur_state" ]; then
+  max="$(cat "$COOL/max_state" 2>/dev/null)"
+  case "$max" in
+    ''|*[!0-9]*) max=3 ;;
+  esac
+  [ "$state" -gt "$max" ] && state="$max"
+  echo "$state" > "$COOL/cur_state" 2>/dev/null
+fi
+
+if [ -n "$PWM" ]; then
+  EN="${PWM%/pwm1}/pwm1_enable"
+  [ -f "$EN" ] && echo 1 > "$EN" 2>/dev/null
+  echo "$v" > "$PWM" 2>/dev/null || exit 1
+fi
+
+echo "$v" > /usr/bin/fanspeed.conf 2>/dev/null
+exit 0

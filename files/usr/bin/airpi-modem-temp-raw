@@ -1,0 +1,40 @@
+#!/bin/sh
+
+valid_c_temp() {
+  v="$1"
+  case "$v" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$v" -ge 20 ] && [ "$v" -le 120 ]
+}
+
+at_open() {
+  dev="$1"
+  ubus call at-daemon open "{\"at_port\":\"$dev\",\"baudrate\":115200,\"databits\":8,\"parity\":\"N\",\"stopbits\":1,\"timeout\":3}" >/dev/null 2>&1
+}
+
+at_cmd() {
+  dev="$1"
+  cmd="$2"
+  ubus call at-daemon sendat "{\"at_port\":\"$dev\",\"timeout\":3,\"end_flag\":\"OK\",\"at_cmd\":\"$cmd\",\"raw_at_content\":\"\",\"sendonly\":false}" 2>/dev/null
+}
+
+for dev in /dev/ttyUSB2 /dev/ttyUSB3; do
+  [ -e "$dev" ] || continue
+  at_open "$dev"
+  out="$(at_cmd "$dev" 'AT+QTEMP')"
+  max=""
+  for n in $(echo "$out" | tr -cs '0-9' ' '); do
+    if valid_c_temp "$n"; then
+      if [ -z "$max" ] || [ "$n" -gt "$max" ]; then
+        max="$n"
+      fi
+    fi
+  done
+  if [ -n "$max" ]; then
+    echo $((max * 10))
+    exit 0
+  fi
+done
+
+exit 1

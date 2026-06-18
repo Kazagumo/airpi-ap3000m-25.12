@@ -1,0 +1,67 @@
+#!/bin/sh
+LOGTAG="Airpifanctrl"
+
+kill_smart() {
+  for p in $(ps w | grep '/usr/bin/fancts.sh' | grep -v grep | awk '{print $1}'); do
+    kill -9 "$p" 2>/dev/null
+  done
+  rm -rf /var/run/fancts.lockdir
+  rm -f /var/run/fancts.pid /tmp/fancts.lock
+}
+
+case "$1" in
+  silent)
+    kill_smart
+    echo 0 > /etc/fanvall
+    /usr/bin/fan-write-duty 64
+    logger -t "$LOGTAG" "mode=silent duty=64"
+    ;;
+  low)
+    kill_smart
+    echo 1 > /etc/fanvall
+    /usr/bin/fan-write-duty 128
+    logger -t "$LOGTAG" "mode=low duty=128"
+    ;;
+  normal)
+    kill_smart
+    echo 2 > /etc/fanvall
+    /usr/bin/fan-write-duty 192
+    logger -t "$LOGTAG" "mode=normal duty=192"
+    ;;
+  turbo)
+    kill_smart
+    echo 3 > /etc/fanvall
+    /usr/bin/fan-write-duty 255
+    logger -t "$LOGTAG" "mode=turbo duty=255"
+    ;;
+  smart)
+    kill_smart
+    echo 9 > /etc/fanvall
+    /usr/bin/fancts.sh &
+    logger -t "$LOGTAG" "mode=smart"
+    ;;
+  manual)
+    val="$2"
+    case "$val" in
+      ''|*[!0-9]*) val=128 ;;
+    esac
+    [ "$val" -lt 0 ] && val=0
+    [ "$val" -gt 255 ] && val=255
+    kill_smart
+    echo 999 > /etc/fanvall
+    /usr/bin/fan-write-duty "$val"
+    logger -t "$LOGTAG" "mode=manual duty=$val"
+    ;;
+  source-cpu)
+    echo CPU温度 > /etc/fanvallv.conf
+    logger -t "$LOGTAG" "temp_source=CPU温度"
+    ;;
+  source-modem)
+    echo 模组温度 > /etc/fanvallv.conf
+    logger -t "$LOGTAG" "temp_source=模组温度"
+    ;;
+  *)
+    echo "Usage: $0 silent|low|normal|turbo|smart|manual <0-255>|source-cpu|source-modem"
+    exit 1
+    ;;
+esac
