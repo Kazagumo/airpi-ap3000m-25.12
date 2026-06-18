@@ -173,7 +173,7 @@ for sym in \
   CONFIG_PACKAGE_luci-app-mtwifi-cfg \
   CONFIG_PACKAGE_luci-app-eqos-mtk \
   CONFIG_PACKAGE_luci-app-turboacc-mtk \
-  CONFIG_PACKAGE_luci-app-qmodem-next \
+  CONFIG_PACKAGE_luci-app-qmodem-next
 do
   if ! grep -q "^${sym}=y$" .config; then
     echo "ERROR: required config not enabled: ${sym}"
