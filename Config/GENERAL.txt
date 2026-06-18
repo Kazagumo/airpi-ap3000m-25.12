@@ -405,3 +405,4 @@ CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
 # Use dnsmasq-full instead of dnsmasq to avoid duplicate file conflicts.
 CONFIG_PACKAGE_dnsmasq-full=y
 # ===== END AIRPI FIX: DNSMASQ-FULL DHCP/DNS =====
+CONFIG_PACKAGE_ndisc6=y

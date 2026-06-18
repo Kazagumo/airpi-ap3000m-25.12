@@ -41,7 +41,7 @@ echo "===== feeds install: selected packages only ====="
   luci-app-diskman luci-app-filemanager luci-app-package-manager \
   luci-app-argon-config luci-theme-argon luci-theme-bootstrap \
   luci-app-mtk luci-app-mtwifi-cfg luci-app-turboacc-mtk \
-  wrtbwmon luci-app-wrtbwmon \
+  wrtbwmon luci-app-wrtbwmon lua-cjson ndisc6 \
   || true
 
 ./scripts/feeds install \
@@ -96,9 +96,10 @@ CONFIG_PACKAGE_mtwifi-cfg-ucode=y
 # CONFIG_PACKAGE_luci-app-eqos-mtk is not set
 CONFIG_PACKAGE_luci-app-turboacc-mtk=y
 CONFIG_PACKAGE_mii_mgr=y
+CONFIG_PACKAGE_lua-cjson=y
 CONFIG_PACKAGE_switch=y
 CONFIG_PACKAGE_regs=y
-CONFIG_PACKAGE_ndisc=y
+CONFIG_PACKAGE_ndisc6=y
 # CONFIG_PACKAGE_mtkhqos_util is not set
 CONFIG_PACKAGE_mtk-smp=y
 
