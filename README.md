@@ -20,19 +20,23 @@
 - 保留模组温度作为备用能力，但不默认启用。
 
 ### 2. LAN 拔线后网络异常修复
-已确认 LAN 网线拔掉后 Wi‑Fi / DNS / SSH / daed 异常的根因不在 DNS，也不在 daed，而是在新版 HNAT 自动检测逻辑。
+已确认 LAN 网线拔掉后 Wi‑Fi / DNS / SSH / daed 异常的根因不在 DNS，也不在 daed，而是在 `hnat-detect / rxppd / br-lan / HNAT anchor` 的拓扑判断不够严谨。
 
 **问题根因：**
 - `hnat-detect` 会把 `wwan0_1` 识别为 ext device；
-- 自动创建 `rxppd` 并挂入 `br-lan`；
-- 在 `eth0` 拔线后，`rxppd + br-lan + HNAT` 状态异常；
-- 导致 DNS 回包虽已到达，但应用层链路表现异常。
+- 原始逻辑可能无条件创建 `rxppd` 并挂入 `br-lan`；
+- 当前 Airpi 拓扑下，真实默认出口是 `wwan0_1`，而 HNAT anchor 仍是 `eth0 / eth1`；
+- 当 `eth0` 拔线后，`rxppd + br-lan + HNAT` 状态可能失配；
+- 导致 DNS、Wi‑Fi、SSH、daed 表现异常。
 
 **解决思路：**
 - 保留 **HNAT / WARP / TurboACC**；
-- 禁用 `hnat-detect` 的自动 hotplug / ucode 逻辑；
-- 防止 `rxppd` 自动挂入 `br-lan`；
-- 目标不是关闭加速，而是移除错误的自动桥接逻辑，恢复稳定网络行为。
+- 保留 `hnat-detect`；
+- 保留 `rxppd` 功能；
+- 让 `hnat-detect` 按真实拓扑执行 **smart topology policy**；
+- 仅在拓扑安全时允许 `rxppd` 挂入 `br-lan`；
+- 不安全时仅执行 `nomaster / down / delete` 局部退出；
+- HNAT hardware anchor 继续保持 `eth0 / eth1`，不改成 `br-lan`。
 
 
 

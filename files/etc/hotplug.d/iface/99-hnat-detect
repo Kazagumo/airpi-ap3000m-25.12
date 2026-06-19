@@ -1,0 +1,11 @@
+#!/bin/sh
+[ "$ACTION" = "ifup" ] || [ "$ACTION" = "update" ] || [ "$ACTION" = "ifupdate" ] || exit 0
+[ "$INTERFACE" = "loopback" ] && exit 0
+
+LOCK="/tmp/hnat-detect.lock"
+if mkdir "$LOCK" 2>/dev/null; then
+    trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+    /usr/bin/ucode /usr/share/ucode/hnat/detect.uc
+else
+    logger -t hnat-detect "skip concurrent iface event ACTION=$ACTION INTERFACE=$INTERFACE"
+fi

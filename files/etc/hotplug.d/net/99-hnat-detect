@@ -1,0 +1,14 @@
+#!/bin/sh
+DEV="${INTERFACE:-${DEVICE:-$DEVICENAME}}"
+
+case "$DEV" in
+    eth*|br-*|wwan*|usb*|ra*|rax*|apcli*|apclix*)
+        LOCK="/tmp/hnat-detect.lock"
+        if mkdir "$LOCK" 2>/dev/null; then
+            trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+            ACTION=ifupdate INTERFACE="$DEV" /usr/bin/ucode /usr/share/ucode/hnat/detect.uc
+        else
+            logger -t hnat-detect "skip concurrent net event DEV=$DEV ACTION=$ACTION"
+        fi
+    ;;
+esac
