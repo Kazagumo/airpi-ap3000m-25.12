@@ -30,8 +30,15 @@ fi
 git clone https://github.com/Kazagumo/luci-theme-alpha ./package/custom/luci-theme-alpha --depth=1
 git clone https://github.com/animegasan/luci-app-alpha-config ./package/custom/luci-app-alpha-config --depth=1
 git clone https://github.com/gSpotx2f/luci-app-temp-status ./package/custom/luci-app-temp-status --depth=1
+git clone https://github.com/Kazagumo/airpi-ap3000m-25.12 ./data --depth=1
+cp -r ./data/vendor/custom/* ./package/custom
+cp -r ./data/vendor/tdtech/* ./package/tdtech
 
 # custom settings
+echo "============================================================"
+echo " Import package patches"
+echo "============================================================"
+cp -r ./data/patches/* ./
 
 
 echo "===== feeds update/install ====="

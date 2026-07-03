@@ -47,17 +47,8 @@ copy_pkg "wrtbwmon"
 copy_pkg "luci-app-wrtbwmon"
 
 
-echo "============================================================"
-echo " Import package patches"
-echo "============================================================"
-PATCHES_DIR="${GITHUB_WORKSPACE:-..}/patches"
-cp -r $PATCHES_DIR/package/* package
-
-
 echo "===== Airpi import: install own Airpifanctrl special-case packages ====="
 AIRPI_VENDOR_DIR="${GITHUB_WORKSPACE:-..}/vendor/airpi"
-TDTECH_VENDOR_DIR="${GITHUB_WORKSPACE:-..}/vendor/tdtech"
-CUSTOM_DIR="${GITHUB_WORKSPACE:-..}/vendor/custom"
 
 # Airpifanctrl is a special case:
 # do NOT use old padavanonly source for luci-app-Airpifanctrl or Airpi-gpio-fan.
@@ -74,8 +65,6 @@ if [ ! -d "$AIRPI_VENDOR_DIR/Airpi-gpio-fan" ]; then
 fi
 
 mkdir -p package/kernel "$DST_DIR"
-mkdir -p package/custom
-mkdir -p package/tdtech
 
 rm -rf package/kernel/Airpi-gpio-fan
 rm -rf "$DST_DIR/luci-app-Airpifanctrl"
@@ -83,8 +72,6 @@ rm -rf "$DST_DIR/luci-app-Airpifanctrl"
 cp -a "$AIRPI_VENDOR_DIR/Airpi-gpio-fan" package/kernel/Airpi-gpio-fan
 cp -a "$AIRPI_VENDOR_DIR/luci-app-Airpifanctrl" "$DST_DIR/luci-app-Airpifanctrl"
 
-cp -a "$CUSTOM_DIR/*" package/custom
-cp -a "$TDTECH_VENDOR_DIR/*" package/tdtech
 
 # remove accidental nested zips from build tree
 find "$DST_DIR/luci-app-Airpifanctrl" -type f -iname "*.zip" -delete 2>/dev/null || true
