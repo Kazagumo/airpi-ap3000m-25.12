@@ -74,6 +74,8 @@ if [ ! -d "$AIRPI_VENDOR_DIR/Airpi-gpio-fan" ]; then
 fi
 
 mkdir -p package/kernel "$DST_DIR"
+mkdir -p package/custom
+mkdir -p package/tdtech
 
 rm -rf package/kernel/Airpi-gpio-fan
 rm -rf "$DST_DIR/luci-app-Airpifanctrl"
@@ -86,6 +88,9 @@ cp -a "$TDTECH_VENDOR_DIR" package/tdtech
 
 # remove accidental nested zips from build tree
 find "$DST_DIR/luci-app-Airpifanctrl" -type f -iname "*.zip" -delete 2>/dev/null || true
+
+echo $(ls package/custom)
+echo $(ls package/tdtech)
 
 if [ ! -f package/kernel/Airpi-gpio-fan/Makefile ]; then
   echo "ERROR: package/kernel/Airpi-gpio-fan/Makefile missing"

@@ -41,16 +41,7 @@ echo "===== feeds install: selected packages only ====="
 # Do not use "./scripts/feeds install -a" here.
 # Only link packages needed by this Airpi build.
 
-./scripts/feeds install \
-  luci luci-base luci-compat luci-mod-admin-full luci-app-firewall \
-  luci-app-ttyd luci-app-upnp luci-app-autoreboot \
-  luci-app-diskman luci-app-filemanager luci-app-package-manager \
-  luci-theme-alpha luci-app-alpha-config luci-app-temp-status \
-  luci-app-cpufreq \
-  luci-app-argon-config luci-theme-argon luci-theme-bootstrap \
-  luci-app-mtwifi-cfg luci-app-turboacc-mtk \
-  wrtbwmon luci-app-wrtbwmon lua-cjson ndisc6 \
-  || true
+./scripts/feeds install -a
 
 # ./scripts/feeds install \
 #  qmodem luci-app-qmodem-next luci-app-qmodem \
@@ -87,7 +78,7 @@ CONFIG_CCACHE=y
 
 CONFIG_PACKAGE_mt5700-support-files=y
 CONFIG_PACKAGE_oh-my-zsh=y
-CONFIG_PACKAGE_vim_fuller=y
+CONFIG_PACKAGE_vim-fuller=y
 CONFIG_PACKAGE_wget=y
 CONFIG_PACKAGE_btop=y
 
@@ -145,9 +136,9 @@ CONFIG_PACKAGE_kmod-sched-bpf=y
 CONFIG_PACKAGE_kmod-veth=y
 CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
 CONFIG_PACKAGE_kmod-nft-tproxy=y
-# CONFIG_PACKAGE_dae=y is not set
+CONFIG_PACKAGE_dae=y
 # CONFIG_PACKAGE_daed=y is not set
-# CONFIG_PACKAGE_luci-app-daede=y is not set
+CONFIG_PACKAGE_luci-app-daede=y
 
 CONFIG_KERNEL_BPF_EVENTS=y
 CONFIG_KERNEL_KPROBE_EVENTS=y
