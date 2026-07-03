@@ -32,7 +32,6 @@ define Build/Prepare
 	[[ "$(CONFIG_ZSH_SYNTAX_HIGHLIGHTING)" == "y" ]] && git clone https://github.com/zsh-users/zsh-syntax-highlighting.git $(PKG_BUILD_DIR)/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting --depth=1
 
 	[[ "$(CONFIG_ZSH_COMPLETIONS)" == "y" ]] && git clone https://github.com/zsh-users/zsh-completions $(PKG_BUILD_DIR)/.oh-my-zsh/custom/plugins/zsh-completions --depth=1
-
 endef
 
 define Build/Compile
