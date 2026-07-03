@@ -1,5 +1,4 @@
 menu "Plugins"
-        depends on PACKAGE_oh-my-zsh
 
 config CONFIG_ZSH_AUTOSUGGESTIONS
 	bool
