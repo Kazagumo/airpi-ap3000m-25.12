@@ -100,6 +100,7 @@ CONFIG_PACKAGE_luci=y
 CONFIG_PACKAGE_luci-app-mtwifi-cfg=y
 CONFIG_PACKAGE_mtwifi-cfg-ucode=y
 
+
 CONFIG_PACKAGE_luci-app-eqos-mtk=y
 CONFIG_PACKAGE_luci-app-turboacc-mtk=y
 CONFIG_PACKAGE_mii_mgr=y
@@ -156,6 +157,7 @@ CONFIG_KERNEL_DEBUG_INFO_BTF=y
 CONFIG_KERNEL_XDP_SOCKETS=y
 CONFIG_BPF_TOOLCHAIN_HOST=y
 
+CONFIG_PACKAGE_luci-i18n-base-ja=y
 # CONFIG_PACKAGE_luci-app-aurora-config is not set
 # CONFIG_PACKAGE_luci-app-openclash is not set
 # CONFIG_PACKAGE_luci-app-istorex is not set
