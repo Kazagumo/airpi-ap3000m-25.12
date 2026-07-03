@@ -62,3 +62,5 @@ echo "Restoring default shell to ash..."
 sed -i s#$(which zsh)#$(which ash)#g /etc/passwd
 exit 0
 endef
+
+$(eval $(call BuildPackage,$(PKG_NAME)))
