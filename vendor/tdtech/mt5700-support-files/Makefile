@@ -9,7 +9,7 @@ PKG_RELEASE:=1
 define Package/$(PKG_NAME)
   SECTION:=utils
   CATEGORY:=Utilities
-  TITLE:=mt5700 scripts
+  TITLE:=mt5700 driver and web configuration interface
   DEPENDS:=	\
   		+kmod-usb2 +kmod-usb3 \
 		+kmod-usb-serial +kmod-usb-serial-option \
@@ -23,7 +23,7 @@ define Package/$(PKG_NAME)
 endef
 
 define Package/$(PKG_NAME)/description
-	mt5700 essential files
+	Phony package of mt5700 drivers and webui
 endef
 
 define Build/Prepare
@@ -33,7 +33,6 @@ define Build/Compile
 endef
 
 define Package/$(PKG_NAME)/install
-		$(CP) ./files/* $(1)/
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))

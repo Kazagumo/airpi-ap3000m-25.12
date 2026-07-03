@@ -38,8 +38,8 @@ define Build/Compile
 endef
 
 define Package/$(PKG_NAME)/install
-	$(CP) $(SOURCE)/files/* $(1)/root
-	$(CP) -r $(PKG_BUILD_DIR)/.oh-my-zsh/* $(1)/root/.oh-my-zsh
+	$(INSTALL_DIR) $(1)/root
+	$(CP) -r $(PKG_BUILD_DIR)/.oh-my-zsh/ $(1)/root
 endef
 
 define Package/$(PKG_NAME)/postinst

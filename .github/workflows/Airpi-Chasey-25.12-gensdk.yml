@@ -95,6 +95,7 @@ jobs:
         working-directory: wrt
         run: |
           make download -j8 || make download -j1 V=s
+          make dirclean
 
       - name: Collect sdk
         if: always()
