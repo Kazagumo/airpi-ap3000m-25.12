@@ -136,8 +136,8 @@ CONFIG_PACKAGE_kmod-sched-bpf=y
 CONFIG_PACKAGE_kmod-veth=y
 CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
 CONFIG_PACKAGE_kmod-nft-tproxy=y
-CONFIG_PACKAGE_dae=y
-# CONFIG_PACKAGE_daed=y is not set
+#CONFIG_PACKAGE_dae=y
+CONFIG_PACKAGE_daed=y
 CONFIG_PACKAGE_luci-app-daede=y
 
 CONFIG_KERNEL_BPF_EVENTS=y
