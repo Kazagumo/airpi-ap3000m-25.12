@@ -27,17 +27,11 @@ define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
 	git clone https://github.com/robbyrussell/oh-my-zsh  $(PKG_BUILD_DIR)/.oh-my-zsh --depth=1
 	
-	if [[ "$(CONFIG_ZSH_AUTOSUGGESTIONS)" == "y" ]]; then
-	  git clone https://github.com/zsh-users/zsh-autosuggestions $(PKG_BUILD_DIR)/.oh-my-zsh/custom/plugins/zsh-autosuggestions --depth=1
-	fi
+	[[ "$(CONFIG_ZSH_AUTOSUGGESTIONS)" == "y" ]] && git clone https://github.com/zsh-users/zsh-autosuggestions $(PKG_BUILD_DIR)/.oh-my-zsh/custom/plugins/zsh-autosuggestions --depth=1
 
-	if [[ "$(CONFIG_ZSH_SYNTAX_HIGHLIGHTING)" == "y" ]]; then
-	  git clone https://github.com/zsh-users/zsh-syntax-highlighting.git $(PKG_BUILD_DIR)/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting --depth=1
-	fi
+	[[ "$(CONFIG_ZSH_SYNTAX_HIGHLIGHTING)" == "y" ]] && git clone https://github.com/zsh-users/zsh-syntax-highlighting.git $(PKG_BUILD_DIR)/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting --depth=1
 
-	if [[ "$(CONFIG_ZSH_COMPLETIONS)" == "y" ]]; then
-	  git clone https://github.com/zsh-users/zsh-completions $(PKG_BUILD_DIR)/.oh-my-zsh/custom/plugins/zsh-completions --depth=1
-	endif
+	[[ "$(CONFIG_ZSH_COMPLETIONS)" == "y" ]] && git clone https://github.com/zsh-users/zsh-completions $(PKG_BUILD_DIR)/.oh-my-zsh/custom/plugins/zsh-completions --depth=1
 
 endef
 
