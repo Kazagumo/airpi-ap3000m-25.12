@@ -13,7 +13,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/$(PKG_NAME)
   SECTION:=utils
   CATEGORY:=Utilities
-  TITLE:=QModem scripts
+  TITLE:=mt5700 scripts
   DEPENDS:=	\
   		+kmod-usb2 +kmod-usb3 \
 		+kmod-usb-serial +kmod-usb-serial-option \
