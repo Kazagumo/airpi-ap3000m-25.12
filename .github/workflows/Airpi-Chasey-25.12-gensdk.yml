@@ -2,9 +2,6 @@ name: Airpi Chasey 25.12 QModem
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: write
@@ -33,7 +30,7 @@ jobs:
             libmpfr-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool \
             libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full \
             patch pkgconf python3 python3-pip python3-ply python3-docutils python3-pyelftools \
-            qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl \
+            qemu-utils re2c rsync scons squashfs-tools subversion swig uglifyjs upx-ucl \
             unzip vim wget xmlto xxd zlib1g-dev zstd
 
       - name: Clone chasey-dev 25.12
@@ -78,17 +75,6 @@ jobs:
           mkdir -p wrt/dl wrt/.ccache
           echo "CONFIG_CCACHE_DIR=${GITHUB_WORKSPACE}/wrt/.ccache" >> "$GITHUB_ENV"
 
-      - name: Cache OpenWrt dl and ccache
-        uses: actions/cache@v4
-        with:
-          path: |
-            wrt/dl
-            wrt/.ccache
-          key: openwrt-airpi-${{ runner.os }}-${{ github.ref_name }}-dlccache-v1
-          restore-keys: |
-            openwrt-airpi-${{ runner.os }}-${{ github.ref_name }}-
-            openwrt-airpi-${{ runner.os }}-
-
       - name: Apply Airpi qmodem 25.12 full config
         working-directory: wrt
         run: |
@@ -110,20 +96,11 @@ jobs:
         run: |
           make download -j8 || make download -j1 V=s
 
-      - name: Build firmware
-        working-directory: wrt
-        run: |
-          make -j"$(nproc)" || make -j1 V=s
-
-      - name: Collect firmware
+      - name: Collect sdk
         if: always()
         run: |
           mkdir -p artifact
-          if [ -d wrt/bin/targets ]; then
-            find wrt/bin/targets -type f \( -name '*.bin' -o -name '*.img' -o -name '*.itb' -o -name '*.manifest' -o -name '*.buildinfo' -o -name '*.json' -o -name 'sha256sums' \) -print -exec cp -f {} artifact/ \;
-          fi
-          echo "===== artifact files ====="
-          ls -lah artifact || true
+          tar -cJvf artifact/sdk.tar.xz wrt/*
 
       - name: Upload firmware artifact
         if: always()
@@ -132,54 +109,3 @@ jobs:
           name: Airpi-qmodem-chasey-25.12
           path: artifact/
           if-no-files-found: error
-
-      - name: Verify Airpi package manifest
-        if: always()
-        run: |
-          echo "===== find manifest ====="
-          find wrt/bin/targets -name '*airpi_ap3000m*.manifest' -print | tee /tmp/airpi_manifest_files.txt || true
-
-          MANIFEST="$(head -n1 /tmp/airpi_manifest_files.txt)"
-          if [ -z "$MANIFEST" ]; then
-            echo "WARN: manifest not found yet"
-            exit 0
-          fi
-
-          echo "===== required packages ====="
-          grep -E 'luci-app-[Aa]irpifanctrl|kmod-[Aa]irpi-gpio-fan|mii_mgr|switch|luci-app-mtwifi-cfg|luci-app-eqos-mtk|luci-app-turboacc-mtk|qmodem|luci-app-qmodem-next' "$MANIFEST" || {
-            echo "ERROR: required package missing from manifest"
-            exit 1
-          }
-
-          echo "===== forbidden packages ====="
-          if grep -E 'luci-app-openclash|luci-app-istorex|luci-app-istore|luci-app-store|luci-app-aurora-config|luci-theme-aurora' "$MANIFEST"; then
-            echo "ERROR: forbidden package found in manifest"
-            exit 1
-          fi
-
-      - name: Prepare release files
-        if: success()
-        run: |
-          mkdir -p release_files
-          if [ -d artifact ]; then
-            find artifact -maxdepth 1 -type f \( -name '*.bin' -o -name '*.img' -o -name '*.itb' -o -name '*.manifest' -o -name '*.buildinfo' -o -name '*.json' -o -name 'sha256sums' \) -exec cp -f {} release_files/ \; || true
-          fi
-          echo "===== release files ====="
-          ls -lah release_files || true
-
-      - name: Generate release tag
-        if: success()
-        id: release_tag
-        run: |
-          echo "tag=build-$(date -u +'%Y.%m.%d-%H%M')" >> "$GITHUB_OUTPUT"
-
-      - name: Create GitHub Release
-        if: success()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.release_tag.outputs.tag }}
-          name: Airpi AP3000M ImmortalWrt 25.12 ${{ steps.release_tag.outputs.tag }}
-          files: release_files/*
-          draft: false
-          prerelease: false
-          generate_release_notes: true
