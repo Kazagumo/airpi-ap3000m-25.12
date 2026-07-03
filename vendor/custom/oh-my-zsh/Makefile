@@ -23,7 +23,7 @@ define Package/$(PKG_NAME)/config
 	source "$(SOURCE)/Config.in"
 endef
 
-define Package/$(PKG_NAME)/Prepare
+define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
 	git clone https://github.com/robbyrussell/oh-my-zsh  $(PKG_BUILD_DIR)/.oh-my-zsh --depth=1
 	
@@ -41,7 +41,7 @@ define Package/$(PKG_NAME)/Prepare
 
 endef
 
-define Package/$(PKG_NAME)/Compile
+define Build/Compile
 endef
 
 define Package/$(PKG_NAME)/install
