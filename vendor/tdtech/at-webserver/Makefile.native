@@ -1,0 +1,14 @@
+CC ?= cc
+CFLAGS ?= -O2 -Wall -Wextra -pthread
+TARGET := at-server-c
+SRC := src/main.c
+
+all: $(TARGET)
+
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) -o $@ $(SRC)
+
+clean:
+	rm -f $(TARGET)
+
+.PHONY: all clean

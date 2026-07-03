@@ -1,0 +1,35 @@
+#!/bin/sh
+cd /usr/share/v2ray
+SOURCE="https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download"
+
+check() {
+	echo "Checking local geodata version..."
+	TIME=$(wget -O - $SOURCE/geoip.dat.sha256sum 2&>1 | grep Loyalsoldier/v2ray-rules-dat/releases/ | grep -oE "\d{12}")
+	[ ! -f site_timestamp ] && touch site_timestamp
+	[ ! -f ip_timestamp ] && touch ip_timestamp
+	[ $TIME ] && [ "$TIME" = "$(cat < site_timestamp)" ] && [ "$TIME" = "$(cat < ip_timestamp)" ] && echo "Already up-to-date(version:$TIME),exiting..." && exit 0
+}
+
+download() {
+	wget -O geoip.dat.1 $SOURCE/geoip.dat 2&>1 | grep Loyalsoldier/v2ray-rules-dat/releases/ | grep -oE "\d{12}" > ip_timestamp.1
+	wget -O geoip.dat.1.sha256sum $SOURCE/geoip.dat.sha256sum 
+	wget -O geosite.dat.1 $SOURCE/geosite.dat 2&>1 | grep Loyalsoldier/v2ray-rules-dat/releases/ | grep -oE "\d{12}" > site_timestamp.1
+	wget -O geosite.dat.1.sha256sum $SOURCE/geosite.dat.sha256sum 
+}
+
+replace() {
+	sed -i "s/geoip.dat/geoip.dat.1/g" geoip.dat.1.sha256sum 
+	sed -i "s/geosite.dat/geosite.dat.1/g" geosite.dat.1.sha256sum 
+	sha256sum -cs geosite.dat.1.sha256sum && echo "geosite valid" && rm geosite.dat site_timestamp && mv geosite.dat.1 geosite.dat && mv site_timestamp.1 site_timestamp
+	sha256sum -cs geoip.dat.1.sha256sum && echo "geoip valid" && rm geoip.dat ip_timestamp && mv geoip.dat.1 geoip.dat && mv ip_timestamp.1 ip_timestamp
+}
+
+cleanup() {
+	echo "updated version:$(cat < ip_timestamp)"
+	rm -f *.1 *.sha256sum 
+}
+
+check
+download && replace
+cleanup
+sync

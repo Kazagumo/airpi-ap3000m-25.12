@@ -13,21 +13,28 @@ else
 fi
 # AIRPI_IMPORT_OLD_MTK_AND_DAED_END
 
-
-echo "============================================================"
-echo " Apply Airpi chasey 25.12 full qmodem config"
-echo "============================================================"
+#echo "============================================================"
+#echo " Apply Airpi chasey 25.12 full qmodem config"
+#echo "============================================================"
 
 # This script runs inside chasey-dev/immortalwrt-mt798x-rebase source root.
 
 # ------------------------------------------------------------
 # Add QModem feed
 # ------------------------------------------------------------
-if ! grep -q 'FUjr/QModem' feeds.conf.default; then
-  echo 'src-git qmodem https://github.com/FUjr/QModem.git;main' >> feeds.conf.default
-fi
+# if ! grep -q 'FUjr/QModem' feeds.conf.default; then
+#   echo 'src-git qmodem https://github.com/FUjr/QModem.git;main' >> feeds.conf.default
+# fi
 
-echo
+# custom packages
+git clone https://github.com/Kazagumo/luci-theme-alpha ./package/custom/luci-theme-alpha --depth=1
+git clone https://github.com/animegasan/luci-app-alpha-config ./package/custom/luci-app-alpha-config --depth=1
+git clone https://github.com/gSpotx2f/luci-app-temp-status ./package/custom/luci-app-temp-status --depth=1
+git clone https://github.com/Kazagumo/luci-app-cpufreq ./package/custom/luci-app-cpufreq --depth=1
+
+# custom settings
+
+
 echo "===== feeds update/install ====="
 ./scripts/feeds update -a
 echo "===== feeds install: selected packages only ====="
@@ -39,18 +46,20 @@ echo "===== feeds install: selected packages only ====="
   luci luci-base luci-compat luci-mod-admin-full luci-app-firewall \
   luci-app-ttyd luci-app-upnp luci-app-autoreboot \
   luci-app-diskman luci-app-filemanager luci-app-package-manager \
+  luci-theme-alpha luci-app-alpha-config luci-app-temp-status \
+  luci-app-cpufreq \
   luci-app-argon-config luci-theme-argon luci-theme-bootstrap \
   luci-app-mtwifi-cfg luci-app-turboacc-mtk \
   wrtbwmon luci-app-wrtbwmon lua-cjson ndisc6 \
   || true
 
-./scripts/feeds install \
-  qmodem luci-app-qmodem-next luci-app-qmodem \
-  ubus_at_daemon tom_modem sms-tool_q modem_scan qmodem_monitor \
-  quectel_QMI_WWAN simcom_QMI_WWAN quectel_MHI qfirehose quectel_CM_5G_M \
-  sms_forwarder_next sms_forwarder \
-  luci-app-qmodem-monitor luci-app-qmodem-sms luci-app-qmodem-mwan luci-app-qmodem-ttl luci-app-qmodem-ttlfw4 \
-  || true
+# ./scripts/feeds install \
+#  qmodem luci-app-qmodem-next luci-app-qmodem \
+#  ubus_at_daemon tom_modem sms-tool_q modem_scan qmodem_monitor \
+#  quectel_QMI_WWAN simcom_QMI_WWAN quectel_MHI qfirehose quectel_CM_5G_M \
+#  sms_forwarder_next sms_forwarder \
+#  luci-app-qmodem-monitor luci-app-qmodem-sms luci-app-qmodem-mwan luci-app-qmodem-ttl luci-app-qmodem-ttlfw4 \
+#  || true
 
 echo "===== feeds install: selected packages done ====="
 
@@ -76,14 +85,18 @@ CONFIG_TARGET_mediatek=y
 CONFIG_TARGET_mediatek_filogic=y
 CONFIG_TARGET_mediatek_filogic_DEVICE_airpi_ap3000m=y
 CONFIG_CCACHE=y
+
+CONFIG_PACKAGE_mt5700-support-files=y
+CONFIG_PACKAGE_oh-my-zsh=y
+CONFIG_PACKAGE_vim_fuller=y
+CONFIG_PACKAGE_wget=y
+CONFIG_PACKAGE_btop=y
+
 CONFIG_PACKAGE_luci-app-firewall=y
 CONFIG_PACKAGE_luci-compat=y
 CONFIG_PACKAGE_luci-base=y
 CONFIG_PACKAGE_luci=y
 # ===== LuCI base =====
-
-CONFIG_PACKAGE_qmodem=y
-CONFIG_PACKAGE_luci-app-qmodem-next=y
 
 CONFIG_PACKAGE_luci-app-mtwifi-cfg=y
 CONFIG_PACKAGE_mtwifi-cfg-ucode=y
@@ -105,17 +118,22 @@ CONFIG_PACKAGE_wrtbwmon=y
 CONFIG_PACKAGE_luci-app-wrtbwmon=y
 
 CONFIG_PACKAGE_luci-app-autoreboot=y
+CONFIG_PACKAGE_luci-app-openlist=y
+CONFIG_PACKAGE_luci-app-partexp=y
+CONFIG_PACKAGE_luci-app-samba4=y
 CONFIG_PACKAGE_luci-app-bandix=y
 CONFIG_PACKAGE_luci-app-diskman=y
 CONFIG_PACKAGE_luci-app-filemanager=y
+CONFIG_PACKAGE_luci-app-irqbalance=y
 CONFIG_PACKAGE_luci-app-package-manager=y
-CONFIG_PACKAGE_luci-app-quickstart=y
 CONFIG_PACKAGE_luci-app-ttyd=y
 CONFIG_PACKAGE_luci-app-upnp=y
 CONFIG_PACKAGE_luci-app-wolplus=y
 CONFIG_PACKAGE_luci-app-xfrpc=y
 CONFIG_PACKAGE_luci-app-argon-config=y
+CONFIG_PACKAGE_luci-app-alpha-config=y
 CONFIG_PACKAGE_luci-theme-argon=y
+CONFIG_PACKAGE_luci-theme-alpha=y
 CONFIG_PACKAGE_luci-theme-bootstrap=y
 CONFIG_KERNEL_CGROUP_BPF=y
 CONFIG_KERNEL_CGROUPS=y
