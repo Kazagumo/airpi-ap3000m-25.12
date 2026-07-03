@@ -30,7 +30,6 @@ fi
 git clone https://github.com/Kazagumo/luci-theme-alpha ./package/custom/luci-theme-alpha --depth=1
 git clone https://github.com/animegasan/luci-app-alpha-config ./package/custom/luci-app-alpha-config --depth=1
 git clone https://github.com/gSpotx2f/luci-app-temp-status ./package/custom/luci-app-temp-status --depth=1
-git clone https://github.com/Kazagumo/luci-app-cpufreq ./package/custom/luci-app-cpufreq --depth=1
 
 # custom settings
 
@@ -188,7 +187,8 @@ for sym in \
   CONFIG_PACKAGE_kmod-Airpi-gpio-fan \
   CONFIG_PACKAGE_luci-app-mtwifi-cfg \
   CONFIG_PACKAGE_luci-app-eqos-mtk \
-  CONFIG_PACKAGE_luci-app-turboacc-mtk \
+  CONFIG_PACKAGE_luci-app-turboacc-mtk
+#  CONFIG_PACKAGE_luci-app-qmodem-next
 do
   if ! grep -q "^${sym}=y$" .config; then
     echo "ERROR: required config not enabled: ${sym}"
