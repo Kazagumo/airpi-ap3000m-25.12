@@ -81,8 +81,8 @@ rm -rf "$DST_DIR/luci-app-Airpifanctrl"
 cp -a "$AIRPI_VENDOR_DIR/Airpi-gpio-fan" package/kernel/Airpi-gpio-fan
 cp -a "$AIRPI_VENDOR_DIR/luci-app-Airpifanctrl" "$DST_DIR/luci-app-Airpifanctrl"
 
-cp -r $CUSTOM_DIR/* package/custom
-cp -r $TDTECH_VENDOR_DIR/* package/tdtech
+cp -a "$CUSTOM_DIR" package/custom
+cp -a "$TDTECH_VENDOR_DIR" package/tdtech
 
 # remove accidental nested zips from build tree
 find "$DST_DIR/luci-app-Airpifanctrl" -type f -iname "*.zip" -delete 2>/dev/null || true
