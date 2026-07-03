@@ -1,16 +1,16 @@
 menu "Plugins"
 
-config CONFIG_ZSH_AUTOSUGGESTIONS
+config ZSH_AUTOSUGGESTIONS
 	bool
 	default y
 	prompt "Enable zsh auto suggestion plugin"
 
-config CONFIG_ZSH_SYNTAX_HIGHLIGHTING
+config ZSH_SYNTAX_HIGHLIGHTING
 	bool
 	default y
 	prompt "Enable zsh syntax highlighting plugin"
 
-config CONFIG_ZSH_COMPLETIONS
+config ZSH_COMPLETIONS
 	bool
 	default y
 	prompt "Enable zsh auto complete plugin"
