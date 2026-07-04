@@ -41,6 +41,8 @@ echo "============================================================"
 echo " Import package patches"
 echo "============================================================"
 cp -r ./data/patches/* ./
+rm ./target/linux/mediatek/dts/mt7981b-airpi-ap3000m.dts
+cp ./data/mt7981b-airpi-ap3000m.dts ./target/linux/mediatek/dts/mt7981b-airpi-ap3000m.dts
 
 
 echo "===== feeds update/install ====="
@@ -128,6 +130,7 @@ CONFIG_PACKAGE_luci-app-filemanager=y
 CONFIG_PACKAGE_luci-app-irqbalance=y
 CONFIG_PACKAGE_luci-app-package-manager=y
 CONFIG_PACKAGE_luci-app-ttyd=y
+CONFIG_PACKAGE_luci-app-cpufreq=y
 CONFIG_PACKAGE_luci-app-upnp=y
 CONFIG_PACKAGE_luci-app-wolplus=y
 CONFIG_PACKAGE_luci-app-xfrpc=y

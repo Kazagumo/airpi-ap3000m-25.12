@@ -4,7 +4,7 @@
 #include <linux/hrtimer.h>
 #include <linux/ktime.h>
 //BY Manper 20250619
-#define GPIO_FAN 483
+#define GPIO_FAN 519
 #define MAX_DUTY_CYCLE 255
 #define PWM_PERIOD_NS 1000000 // 1ms period
 

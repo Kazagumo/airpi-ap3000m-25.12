@@ -1,5 +1,5 @@
 {
-	"admin/status/at-webserver/dashboard": {
+	"admin/status/at-webserver": {
     	"title": "巴龙面板",
     	"order": 1,
     	"action": {
