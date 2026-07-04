@@ -157,7 +157,6 @@ echo "===== Airpi import: add daed feed ====="
 #if ! grep -q 'openwrt-daede' feeds.conf.default 2>/dev/null; then
 #  echo "src-git daede https://github.com/kenzok8/openwrt-daede.git" >> feeds.conf.default
 #fi
-./script/feeds uninstall daed dae luci-app-dae luci-app-daed
 git clone https://github.com/kenzok8/openwrt-daede package/daede --depth=1
 #echo "===== Airpi import: update/install daed feed ====="
 #./scripts/feeds update daede

@@ -51,6 +51,7 @@ echo "===== feeds install: selected packages only ====="
 # Only link packages needed by this Airpi build.
 
 ./scripts/feeds install -a
+./scripts/feeds uninstall daed dae luci-app-dae luci-app-daed
 
 # ./scripts/feeds install \
 #  qmodem luci-app-qmodem-next luci-app-qmodem \
