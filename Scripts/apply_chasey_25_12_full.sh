@@ -41,8 +41,6 @@ echo "============================================================"
 echo " Import package patches"
 echo "============================================================"
 cp -r ./data/patches/* ./
-rm ./target/linux/mediatek/dts/mt7981b-airpi-ap3000m.dts
-cp ./data/mt7981b-airpi-ap3000m.dts ./target/linux/mediatek/dts/mt7981b-airpi-ap3000m.dts
 
 
 echo "===== feeds update/install ====="
