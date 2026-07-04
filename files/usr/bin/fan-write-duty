@@ -9,6 +9,8 @@ esac
 PWM=""
 COOL=""
 
+[ -f "/sys/kernel/duty_cycle" ] && echo "$v" > /sys/kernel/duty_cycle
+
 for d in /sys/class/hwmon/hwmon*; do
   [ -f "$d/name" ] || continue
   name="$(cat "$d/name" 2>/dev/null)"
