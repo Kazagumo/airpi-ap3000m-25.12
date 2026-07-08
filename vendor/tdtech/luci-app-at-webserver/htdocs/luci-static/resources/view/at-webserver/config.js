@@ -99,7 +99,7 @@ return view.extend({
 		_('模块的网络接口名称，如 wwan、wwan0、eth1 等，用于自动配置IP'));
 	o.datatype = 'string';
 	o.default = 'wwan';
-	o.depends('connection_type', 'NETWORK');
+	o.depends('ip_update_enable', '1');
 
 	// 模块访问安全配置（始终显示，但仅在网络连接模式下生效）
 	o = s.option(form.DummyValue, '_module_security_title', _('模块访问安全'));
