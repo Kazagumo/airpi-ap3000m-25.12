@@ -12,7 +12,7 @@ define Package/at-webserver
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=MT5700 AT WebSocket server in C
-  DEPENDS:= +libpthread +libc
+  DEPENDS:= +libpthread +libc +kmod-cdc-mbim
 endef
 
 define Package/at-webserver/description

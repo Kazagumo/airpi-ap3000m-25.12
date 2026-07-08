@@ -33,6 +33,12 @@ set network.wan6=interface
 set network.wan6.device='eth1'
 set network.wan6.proto='dhcpv6'
 
+network.wwan=interface
+network.wwan.proto='static'
+network.wwan.device='wwan0'
+network.wwan.multipath='on'
+network.wwan.ip6assign='64'
+
 set dhcp.lan=dhcp
 set dhcp.lan.interface='lan'
 set dhcp.lan.start='100'

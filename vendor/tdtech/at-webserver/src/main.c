@@ -32,6 +32,8 @@
 typedef struct {
     int enabled;
     int connection_type;
+    int ip_update_enable;
+    char wwan_interface[64];
     char network_host[64];
     int network_port;
     int network_timeout_sec;
@@ -117,6 +119,7 @@ typedef struct {
 static app_state_t g_app;
 static int send_sync_command(app_state_t *app, const char *command, at_response_t *response);
 static int g_verbose = 0;
+static time_t g_start_time = 0;
 
 #define LOGF(...) do { if (g_verbose) fprintf(stderr, __VA_ARGS__); } while (0)
 
@@ -145,6 +148,8 @@ static void set_defaults(app_config_t *config) {
     memset(config, 0, sizeof(*config));
     config->enabled = 1;
     config->connection_type = AT_TYPE_NETWORK;
+    config->ip_update_enable = 0;
+    snprintf(config->wwan_interface, sizeof(config->wwan_interface), "wwan");
     snprintf(config->network_host, sizeof(config->network_host), "192.168.8.1");
     config->network_port = 20249;
     config->network_timeout_sec = 10;
@@ -1465,6 +1470,391 @@ static void handle_unsolicited_line(const char *line) {
     }
 }
 
+static int parse_dhcp_ipv4_token(const char *token, char *out, size_t out_size) {
+    const char *start = token;
+    while (*start == ' ' || *start == '\t') start++;
+
+    char hex[32];
+    size_t len = strlen(start);
+    while (len > 0 && (start[len - 1] == ' ' || start[len - 1] == '\t')) len--;
+    if (len == 0 || len >= sizeof(hex)) return 0;
+    memcpy(hex, start, len);
+    hex[len] = '\0';
+
+    char *endptr;
+    unsigned long value = strtoul(hex, &endptr, 16);
+    if (endptr == hex) return 0;
+
+    unsigned int b0 = (value >> 0) & 0xFF;
+    unsigned int b1 = (value >> 8) & 0xFF;
+    unsigned int b2 = (value >> 16) & 0xFF;
+    unsigned int b3 = (value >> 24) & 0xFF;
+    snprintf(out, out_size, "%u.%u.%u.%u", b0, b1, b2, b3);
+    return 1;
+}
+
+static void set_ipv4_addr(const char *data,app_config_t *config) {
+    char copy[AT_RESPONSE_MAX];
+    char *line;
+    char *saveptr1;
+    char *saveptr2;
+    char *token;
+    char values[6][64];
+    int field_count;
+
+    snprintf(copy, sizeof(copy), "%s", data);
+    line = strtok_r(copy, "\r\n", &saveptr1);
+    while (line != NULL) {
+        trim_space(line);
+        if (strncmp(line, "^DHCP:", 6) == 0) {
+            char *rest = line + 6;
+            trim_space(rest);
+            field_count = 0;
+            token = strtok_r(rest, ",", &saveptr2);
+            while (token != NULL && field_count < 6) {
+                if (!parse_dhcp_ipv4_token(token, values[field_count], sizeof(values[field_count]))) {
+                    snprintf(values[field_count], sizeof(values[field_count]), "0.0.0.0");
+                }
+                field_count++;
+                token = strtok_r(NULL, ",", &saveptr2);
+            }
+            if (field_count == 6) {
+                printf("IPUPDATE IPV4: ip=%s mask=%s gw=%s dhcps=%s dns1=%s dns2=%s\n",
+                     values[0], values[1], values[2], values[3], values[4], values[5]);
+
+                char cmd[1024];
+                snprintf(cmd, sizeof(cmd),
+                         "uci set network.%s.ipaddr='%s' && "
+                         "uci set network.%s.netmask='%s' && "
+                         "uci set network.%s.gateway='%s' && "
+                         "uci set network.%s.dns='%s %s'",
+                         config->wwan_interface, values[0],
+                         config->wwan_interface, values[1],
+                         config->wwan_interface, values[2],
+                         config->wwan_interface, values[4], values[5]);
+                LOGF("Running: %s\n", cmd);
+                FILE *fp = popen(cmd, "r");
+                if (fp) pclose(fp);
+
+                return;
+            }
+        }
+        line = strtok_r(NULL, "\r\n", &saveptr1);
+    }
+}
+
+static void set_ipv6_addr(const char *data, app_config_t *config) {
+    char copy[AT_RESPONSE_MAX];
+    char *line;
+    char *saveptr1;
+    char *saveptr2;
+    char *token;
+    char values[6][INET6_ADDRSTRLEN];
+    int field_count;
+
+    snprintf(copy, sizeof(copy), "%s", data);
+    line = strtok_r(copy, "\r\n", &saveptr1);
+    while (line != NULL) {
+        trim_space(line);
+        if (strncmp(line, "^DHCPV6:", 8) == 0) {
+            char *rest = line + 8;
+            trim_space(rest);
+            field_count = 0;
+            token = strtok_r(rest, ",", &saveptr2);
+            while (token != NULL && field_count < 6) {
+                trim_space(token);
+                if (strcmp(token, "::") == 0) {
+                    snprintf(values[field_count], sizeof(values[field_count]), "::");
+                } else {
+                    struct in6_addr addr;
+                    if (inet_pton(AF_INET6, token, &addr) == 1) {
+                        inet_ntop(AF_INET6, &addr, values[field_count], sizeof(values[field_count]));
+                    } else {
+                        snprintf(values[field_count], sizeof(values[field_count]), "%s", token);
+                    }
+                }
+                field_count++;
+                token = strtok_r(NULL, ",", &saveptr2);
+            }
+            if (field_count >= 1) {
+                char prefix_buf[INET6_ADDRSTRLEN];
+                char addr_with_prefix[INET6_ADDRSTRLEN + 8];
+                struct in6_addr addr;
+                if (inet_pton(AF_INET6, values[0], &addr) == 1) {
+                    uint16_t hextets[8];
+                    for (int i = 0; i < 8; i++) {
+                        hextets[i] = (addr.s6_addr[i * 2] << 8) | addr.s6_addr[i * 2 + 1];
+                    }
+                    snprintf(prefix_buf, sizeof(prefix_buf),
+                             "%x:%x:%x:%x::/64",
+                             hextets[0], hextets[1], hextets[2], hextets[3]);
+
+                    snprintf(addr_with_prefix, sizeof(addr_with_prefix),
+                             "%s/64", values[0]);
+
+                    printf("IPUPDATE IPV6: addr=%s netmask=%s gw=%s dhcp=%s pdns=%s sdns=%s\n",
+                         values[0], values[1], values[2], values[3], values[4], values[5]);
+                    printf("DHCPV6 prefix: %s\n", prefix_buf);
+
+                    char cmd[1024];
+                    snprintf(cmd, sizeof(cmd),
+                             "uci set network.%s.ip6prefix='%s' && "
+                             "uci set network.%s.ip6addr='%s'",
+                             config->wwan_interface, prefix_buf,
+                             config->wwan_interface, addr_with_prefix);
+                    if (field_count >= 3 && strcmp(values[2], "::") != 0) {
+                        char gw_cmd[256];
+                        snprintf(gw_cmd, sizeof(gw_cmd),
+                                 " && uci set network.%s.ip6gw='%s'",
+                                 config->wwan_interface, values[2]);
+                        strncat(cmd, gw_cmd, sizeof(cmd) - strlen(cmd) - 1);
+                    }
+                    LOGF("Running: %s\n", cmd);
+                    FILE *fp = popen(cmd, "r");
+                    if (fp) pclose(fp);
+                }
+                return;
+            }
+        }
+        line = strtok_r(NULL, "\r\n", &saveptr1);
+    }
+}
+
+static int read_at_response_direct(app_state_t *app, at_response_t *response, int timeout_sec, const char *cmd_echo) {
+    char read_buf[AT_READ_BUF];
+    char line_buf[AT_LINE_MAX];
+    size_t line_len = 0;
+    time_t deadline = time(NULL) + timeout_sec;
+    int found_terminal = 0;
+    size_t cmd_echo_len = cmd_echo ? strlen(cmd_echo) : 0;
+
+    response->success = 0;
+    response->data[0] = '\0';
+    response->error[0] = '\0';
+
+    while (time(NULL) < deadline) {
+        ssize_t n = read(app->transport.fd, read_buf, sizeof(read_buf));
+        if (n < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+                usleep(10000);
+                continue;
+            }
+            break;
+        }
+        if (n == 0) {
+            usleep(10000);
+            continue;
+        }
+
+        for (ssize_t i = 0; i < n; ++i) {
+            char c = read_buf[i];
+            if (c == '\r') continue;
+            if (c == '\n') {
+                if (line_len == 0) continue;
+                line_buf[line_len] = '\0';
+                trim_eol(line_buf);
+
+                if (line_buf[0]) {
+                    /* Skip command echo */
+                    if (cmd_echo_len > 0 && strncmp(line_buf, cmd_echo, cmd_echo_len) == 0) {
+                        line_len = 0;
+                        continue;
+                    }
+                    LOGF("AT direct: %s\n", line_buf);
+
+                    if (is_terminal_line(line_buf)) {
+                        found_terminal = 1;
+                        if (is_error_line(line_buf)) {
+                            snprintf(response->error, sizeof(response->error), "%s", line_buf);
+                            response->success = 0;
+                        } else {
+                            response->success = 1;
+                        }
+                        return 0;
+                    }
+
+                    size_t used = strlen(response->data);
+                    size_t remain = sizeof(response->data) - used - 1;
+                    if (used > 0 && remain > 2) {
+                        strncat(response->data, "\r\n", remain);
+                        used = strlen(response->data);
+                        remain = sizeof(response->data) - used - 1;
+                    }
+                    if (remain > 0) {
+                        strncat(response->data, line_buf, remain);
+                    }
+                }
+                line_len = 0;
+                continue;
+            }
+            if (line_len + 1 < sizeof(line_buf)) {
+                line_buf[line_len++] = c;
+            }
+        }
+    }
+
+    if (!found_terminal) {
+        snprintf(response->error, sizeof(response->error), "AT response timed out");
+    }
+    return -1;
+}
+
+static void do_port_update(app_state_t *app) {
+    at_response_t *response;
+    char buf[64];
+    int got_ipv4 = 0;
+    int got_ipv6 = 0;
+
+    response = (at_response_t *) calloc(1, sizeof(*response));
+    if (response == NULL) return;
+
+    snprintf(buf, sizeof(buf), "ifdown %s", app->config.wwan_interface);
+    LOGF("IPUPDATE: %s\n", buf);
+    FILE *fp = popen(buf, "r");
+    if (fp) pclose(fp);
+
+    for (int retry = 0; retry < 15 && !got_ipv4; retry++) {
+        if (retry > 0) {
+            LOGF("IPUPDATE: retry DHCP attempt %d/15\n", retry + 1);
+            sleep(1);
+        }
+        if (transport_write_all(&app->transport, "AT^DHCP?\r\n", 11) == 0 &&
+            read_at_response_direct(app, response, 3, "AT^DHCP?") == 0 &&
+            response->success && response->data[0]) {
+            printf("IPUPDATE: got DHCP response\n");
+            set_ipv4_addr(response->data, &app->config);
+            got_ipv4 = 1;
+        }
+    }
+
+    for (int retry = 0; retry < 15 && !got_ipv6; retry++) {
+        if (retry > 0) {
+            LOGF("IPUPDATE: retry DHCPV6 attempt %d/15\n", retry + 1);
+            sleep(1);
+        }
+        if (transport_write_all(&app->transport, "AT^DHCPV6?\r\n", 13) == 0 &&
+            read_at_response_direct(app, response, 3, "AT^DHCPV6?") == 0 &&
+            response->success && response->data[0]) {
+            printf("IPUPDATE: got DHCPV6 response\n");
+            set_ipv6_addr(response->data, &app->config);
+            got_ipv6 = 1;
+        }
+    }
+
+    if (got_ipv4 || got_ipv6) {
+        fp = popen("uci commit network", "r");
+        if (fp) pclose(fp);
+        snprintf(buf, sizeof(buf), "ifup %s", app->config.wwan_interface);
+        LOGF("IPUPDATE: %s\n", buf);
+        printf("IPUPDATE: Done\n");
+        fp = popen(buf, "r");
+        if (fp) pclose(fp);
+    }
+    free(response);
+}
+
+static double get_uptime_seconds(void) {
+    FILE *fp = fopen("/proc/uptime", "r");
+    if (fp == NULL) return -1;
+    double uptime;
+    if (fscanf(fp, "%lf", &uptime) != 1) {
+        fclose(fp);
+        return -1;
+    }
+    fclose(fp);
+    return uptime;
+}
+
+static void do_port_update_sync(app_state_t *app) {
+    at_response_t *response;
+    char buf[64];
+    int got_ipv4 = 0;
+    int got_ipv6 = 0;
+
+    response = (at_response_t *) calloc(1, sizeof(*response));
+    if (response == NULL) return;
+
+    snprintf(buf, sizeof(buf), "ifdown %s", app->config.wwan_interface);
+    LOGF("IPUPDATE: %s\n", buf);
+    FILE *fp = popen(buf, "r");
+    if (fp) pclose(fp);
+
+    for (int retry = 0; retry < 15 && !got_ipv4; retry++) {
+        if (retry > 0) {
+            LOGF("IPUPDATE: retry DHCP attempt %d/15\n", retry + 1);
+            sleep(1);
+        }
+        if (send_sync_command(app, "AT^DHCP?", response) == 0 && response->data[0]) {
+            printf("IPUPDATE: got DHCP response\n");
+            set_ipv4_addr(response->data, &app->config);
+            got_ipv4 = 1;
+        }
+    }
+
+    for (int retry = 0; retry < 15 && !got_ipv6; retry++) {
+        if (retry > 0) {
+            LOGF("IPUPDATE: retry DHCPV6 attempt %d/15\n", retry + 1);
+            sleep(1);
+        }
+        if (send_sync_command(app, "AT^DHCPV6?", response) == 0 && response->data[0]) {
+            printf("IPUPDATE: got DHCPV6 response\n");
+            set_ipv6_addr(response->data, &app->config);
+            got_ipv6 = 1;
+        }
+    }
+
+    if (got_ipv4 || got_ipv6) {
+        fp = popen("uci commit network", "r");
+        if (fp) pclose(fp);
+        snprintf(buf, sizeof(buf), "ifup %s", app->config.wwan_interface);
+        LOGF("IPUPDATE: %s\n", buf);
+        printf("IPUPDATE: Done\n");
+        fp = popen(buf, "r");
+        if (fp) pclose(fp);
+    }
+    free(response);
+}
+
+static void *startup_timer_thread(void *arg) {
+    app_state_t *app = (app_state_t *) arg;
+    double uptime = get_uptime_seconds();
+    if (uptime >= 0) {
+        double sleep_needed = 40.0 - uptime;
+        if (sleep_needed > 0) {
+            printf("IPUPDATE: startup timer - waiting %.0fs for 40s post-boot\n", sleep_needed);
+            sleep((unsigned int) sleep_needed);
+        } else {
+            printf("IPUPDATE: startup timer - already past 40s post-boot, executing now\n");
+        }
+    } else {
+        printf("IPUPDATE: startup timer - cannot read /proc/uptime, falling back to 40s delay\n");
+        sleep(40);
+    }
+    if (!app->config.ip_update_enable) {
+        printf("IPUPDATE: startup timer - ip_update disabled\n");
+        return NULL;
+    }
+    printf("IPUPDATE: startup timer - executing port update\n");
+    do_port_update_sync(app);
+    return NULL;
+}
+
+void notify_port_update(app_state_t *app, const char *line) {
+    if (strncmp(line, "^NDISSTAT: 1,1,,,\"IPV6\"" , 24) == 0) {
+        if (g_start_time > 0 && time(NULL) - g_start_time < 3) {
+            printf("IPUPDATE: ignored (within 3s of startup)\n");
+            return;
+        }
+        if (!app->config.ip_update_enable) {
+            printf("IPUPDATE: ip_update disabled\n");
+            return;
+        }
+        printf("IPUPDATE: Triggered\n");
+        do_port_update(app);
+    }
+}
+
+
 static void *reader_thread(void *arg) {
     app_state_t *app = (app_state_t *) arg;
     char read_buf[AT_READ_BUF];
@@ -1496,6 +1886,7 @@ static void *reader_thread(void *arg) {
                 trim_eol(line_buf);
                 if (line_buf[0]) {
                     LOGF("AT raw: %s\n", line_buf);
+                    notify_port_update(app,line_buf);
                     if (should_broadcast_raw_line(app, line_buf)) {
                         broadcast_raw_data(line_buf);
                     }
@@ -1910,6 +2301,10 @@ static void uci_apply_line(app_config_t *config, const char *line) {
         config->enabled = atoi(val_buf);
     } else if (strcmp(key_buf, "connection_type") == 0) {
         config->connection_type = (strcmp(val_buf, "SERIAL") == 0) ? AT_TYPE_SERIAL : AT_TYPE_NETWORK;
+    } else if (strcmp(key_buf, "ip_update_enable") == 0) {
+        config->ip_update_enable = atoi(val_buf);
+    } else if (strcmp(key_buf, "wwan_interface") == 0) {
+        snprintf(config->wwan_interface, sizeof(config->wwan_interface), "%s", val_buf);
     } else if (strcmp(key_buf, "network_host") == 0) {
         snprintf(config->network_host, sizeof(config->network_host), "%s", val_buf);
     } else if (strcmp(key_buf, "network_port") == 0) {
@@ -1969,10 +2364,12 @@ int main(void) {
     pthread_t dispatch_tid;
     pthread_t heartbeat_tid;
     pthread_t sms_worker_tid;
+    pthread_t startup_timer_tid;
     int server_fd_v4;
     int server_fd_v6;
 
     memset(&g_app, 0, sizeof(g_app));
+    g_start_time = time(NULL);
     g_verbose = (getenv("AT_SERVER_VERBOSE") != NULL);
     set_defaults(&g_app.config);
     load_uci_config(&g_app.config);
@@ -2010,6 +2407,7 @@ int main(void) {
     pthread_create(&dispatch_tid, NULL, dispatch_thread, &g_app);
     pthread_create(&heartbeat_tid, NULL, heartbeat_thread, NULL);
     pthread_create(&sms_worker_tid, NULL, sms_worker_thread, &g_app);
+    pthread_create(&startup_timer_tid, NULL, startup_timer_thread, &g_app);
 
     server_fd_v4 = start_websocket_server(&g_app.config);
     server_fd_v6 = start_websocket_server_v6(&g_app.config);
@@ -2022,6 +2420,7 @@ int main(void) {
         pthread_join(dispatch_tid, NULL);
         pthread_join(heartbeat_tid, NULL);
         pthread_join(sms_worker_tid, NULL);
+        pthread_join(startup_timer_tid, NULL);
         transport_close(&g_app.transport);
         return 1;
     }
@@ -2088,6 +2487,7 @@ int main(void) {
     pthread_join(dispatch_tid, NULL);
     pthread_join(heartbeat_tid, NULL);
     pthread_join(sms_worker_tid, NULL);
+    pthread_join(startup_timer_tid, NULL);
     transport_close(&g_app.transport);
     return 0;
 }

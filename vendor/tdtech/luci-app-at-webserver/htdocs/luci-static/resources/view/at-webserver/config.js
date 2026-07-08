@@ -90,6 +90,17 @@ return view.extend({
 	o.default = '10';
 	o.depends('connection_type', 'NETWORK');
 
+	o = s.option(form.Flag, 'ip_update_enable', _('启用 IP 自动更新'),
+		_('检测到拨号成功后自动通过 AT^DHCP? 获取 IP 地址并配置蜂窝网络接口。<br><strong>说明：如不使用mbim模式请不要启用该选项！mbim模式下使用静态地址协议配置接口，不要使用其他模式！</strong><br>'));
+	o.default = '0';
+	o.rmempty = false;
+
+	o = s.option(form.Value, 'wwan_interface', _('蜂窝网络接口'),
+		_('模块的网络接口名称，如 wwan、wwan0、eth1 等，用于自动配置IP'));
+	o.datatype = 'string';
+	o.default = 'wwan';
+	o.depends('connection_type', 'NETWORK');
+
 	// 模块访问安全配置（始终显示，但仅在网络连接模式下生效）
 	o = s.option(form.DummyValue, '_module_security_title', _('模块访问安全'));
 	o.rawhtml = true;

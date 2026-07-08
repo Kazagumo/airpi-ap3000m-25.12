@@ -1,7 +1,7 @@
 {
 	"admin/status/at-webserver": {
     	"title": "巴龙面板",
-    	"order": 1,
+    	"order": 2,
     	"action": {
       		"type": "view",
       		"path": "at-webserver/dashboard"
