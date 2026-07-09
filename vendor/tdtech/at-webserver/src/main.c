@@ -2305,6 +2305,10 @@ static void uci_apply_line(app_config_t *config, const char *line) {
         config->ip_update_enable = atoi(val_buf);
     } else if (strcmp(key_buf, "wwan_interface") == 0) {
         snprintf(config->wwan_interface, sizeof(config->wwan_interface), "%s", val_buf);
+    } else if (strcmp(key_buf, "wwan_interface_custom") == 0) {
+        if (strcmp(config->wwan_interface, "custom") == 0) {
+            snprintf(config->wwan_interface, sizeof(config->wwan_interface), "%s", val_buf);
+        }    
     } else if (strcmp(key_buf, "network_host") == 0) {
         snprintf(config->network_host, sizeof(config->network_host), "%s", val_buf);
     } else if (strcmp(key_buf, "network_port") == 0) {
