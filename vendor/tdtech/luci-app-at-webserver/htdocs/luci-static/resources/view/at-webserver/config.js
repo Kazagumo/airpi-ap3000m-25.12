@@ -90,6 +90,70 @@ return view.extend({
 	o.default = '10';
 	o.depends('connection_type', 'NETWORK');
 
+	o = s.option(form.DummyValue, '_ip_update_title', _('IP自动更新'));
+	o.rawhtml = true;
+	o.cfgvalue = function() {
+		return '<strong style="color:#0099CC;">━━━━━━━ IP自动更新配置 ━━━━━━━</strong>';
+	};
+
+	o = s.option(form.Flag, 'ip_update_enable', _('启用 IP 自动更新'),
+		_('检测到拨号成功后自动通过 AT^DHCP? 获取 IP 地址并配置蜂窝网络接口。<br><strong>说明：如不使用mbim模式请不要启用该选项！mbim模式下使用静态地址协议配置接口，不要使用其他模式！</strong><br>'));
+	o.default = '0';
+	o.rmempty = false;
+
+	o = s.option(form.ListValue, 'wwan_interface', _('蜂窝网络接口'),
+		_('模块的网络接口名称，用于自动配置IP'));
+	o.depends('ip_update_enable', '1');
+	o.load = function(section_id) {
+		return Promise.all([
+			fs.read('/proc/net/dev').catch(function() { return ''; }),
+			form.ListValue.prototype.load.apply(this, [section_id])
+		]).then(L.bind(function(results) {
+			var data = results[0] || '';
+			var currentValue = results[1];
+
+			this.keylist = [];
+			this.vallist = [];
+
+			// 从 /proc/net/dev 中匹配 wwan 前缀的接口
+			var interfaces = [];
+			var lines = data.split('\n');
+			for (var i = 2; i < lines.length; i++) {
+				var line = lines[i].trim();
+				if (!line) continue;
+				var iface = line.split(':')[0].trim();
+				if (iface && iface.match(/^wwan/)) {
+					interfaces.push(iface);
+				}
+			}
+			interfaces.sort();
+
+			if (interfaces.length > 0) {
+				interfaces.forEach(L.bind(function(iface) {
+					this.value(iface, iface);
+				}, this));
+			} else {
+				this.value('wwan', 'wwan (默认)');
+			}
+
+			this.value('custom', _('自定义...'));
+
+			if (currentValue && !interfaces.includes(currentValue) && currentValue !== 'custom') {
+				this.value(currentValue, currentValue + ' (当前)');
+			}
+
+			return currentValue;
+		}, this));
+	};
+	o.default = 'wwan';
+
+	// 自定义接口输入框
+	o = s.option(form.Value, 'wwan_interface_custom', _('自定义接口名称'),
+		_('输入完整的网络接口名称'));
+	o.depends('wwan_interface', 'custom');
+	o.placeholder = 'wwan';
+	o.rmempty = false;
+
 	// 模块访问安全配置（始终显示，但仅在网络连接模式下生效）
 	o = s.option(form.DummyValue, '_module_security_title', _('模块访问安全'));
 	o.rawhtml = true;
