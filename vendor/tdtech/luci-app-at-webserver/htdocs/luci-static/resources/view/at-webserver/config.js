@@ -106,25 +106,24 @@ return view.extend({
 	o.depends('ip_update_enable', '1');
 	o.load = function(section_id) {
 		return Promise.all([
-			fs.read('/proc/net/dev').catch(function() { return ''; }),
+			uci.load('network').catch(function() { return null; }),
 			form.ListValue.prototype.load.apply(this, [section_id])
 		]).then(L.bind(function(results) {
-			var data = results[0] || '';
 			var currentValue = results[1];
 
 			this.keylist = [];
 			this.vallist = [];
 
-			// 从 /proc/net/dev 中匹配 wwan 前缀的接口
+			// 从 UCI network 配置中读取所有 interface 的 section 名称
 			var interfaces = [];
-			var lines = data.split('\n');
-			for (var i = 2; i < lines.length; i++) {
-				var line = lines[i].trim();
-				if (!line) continue;
-				var iface = line.split(':')[0].trim();
-				if (iface && iface.match(/^wwan/)) {
-					interfaces.push(iface);
-				}
+			var sections = uci.sections('network', 'interface');
+			if (sections && sections.length > 0) {
+				sections.forEach(function(s) {
+					var name = s['.name'];
+					if (name && name !== 'lo' && name !== 'loopback') {
+						interfaces.push(name);
+					}
+				});
 			}
 			interfaces.sort();
 
