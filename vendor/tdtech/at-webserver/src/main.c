@@ -1578,7 +1578,6 @@ static void set_ipv6_addr(const char *data, app_config_t *config) {
             }
             if (field_count >= 1) {
                 char prefix_buf[INET6_ADDRSTRLEN];
-                char addr_with_prefix[INET6_ADDRSTRLEN + 8];
                 struct in6_addr addr;
                 if (inet_pton(AF_INET6, values[0], &addr) == 1) {
                     uint16_t hextets[8];
@@ -1589,9 +1588,6 @@ static void set_ipv6_addr(const char *data, app_config_t *config) {
                              "%x:%x:%x:%x::/64",
                              hextets[0], hextets[1], hextets[2], hextets[3]);
 
-                    snprintf(addr_with_prefix, sizeof(addr_with_prefix),
-                             "%s/64", values[0]);
-
                     printf("IPUPDATE IPV6: addr=%s netmask=%s gw=%s dhcp=%s pdns=%s sdns=%s\n",
                          values[0], values[1], values[2], values[3], values[4], values[5]);
                     printf("DHCPV6 prefix: %s\n", prefix_buf);
@@ -1601,7 +1597,7 @@ static void set_ipv6_addr(const char *data, app_config_t *config) {
                              "uci set network.%s.ip6prefix='%s' && "
                              "uci set network.%s.ip6addr='%s'",
                              config->wwan_interface, prefix_buf,
-                             config->wwan_interface, addr_with_prefix);
+                             config->wwan_interface, values[0]);
                     if (field_count >= 3 && strcmp(values[2], "::") != 0) {
                         char gw_cmd[256];
                         snprintf(gw_cmd, sizeof(gw_cmd),
