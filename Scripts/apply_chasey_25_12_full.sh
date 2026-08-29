@@ -91,6 +91,7 @@ CONFIG_PACKAGE_oh-my-zsh=y
 CONFIG_PACKAGE_vim-fuller=y
 CONFIG_PACKAGE_wget=y
 CONFIG_PACKAGE_btop=y
+CONFIG_PACKAGE_curl=y
 
 CONFIG_PACKAGE_luci-app-firewall=y
 CONFIG_PACKAGE_luci-compat=y
