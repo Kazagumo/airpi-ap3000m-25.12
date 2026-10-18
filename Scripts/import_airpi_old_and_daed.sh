@@ -157,7 +157,7 @@ echo "===== Airpi import: add daed feed ====="
 #if ! grep -q 'openwrt-daede' feeds.conf.default 2>/dev/null; then
 #  echo "src-git daede https://github.com/kenzok8/openwrt-daede.git" >> feeds.conf.default
 #fi
-git clone https://github.com/kenzok8/openwrt-honk package/daede --depth=1
+git clone https://github.com/Kazagumo/openwrt-honk package/daede --depth=1
 #echo "===== Airpi import: update/install daed feed ====="
 #./scripts/feeds update daede
 
