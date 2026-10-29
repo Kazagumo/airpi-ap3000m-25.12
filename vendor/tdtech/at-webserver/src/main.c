@@ -1493,7 +1493,15 @@ static int parse_dhcp_ipv4_token(const char *token, char *out, size_t out_size) 
     return 1;
 }
 
-static void set_ipv4_addr(const char *data,app_config_t *config) {
+static int is_usable_ipv4(const char *text) {
+    struct in_addr addr;
+
+    if (text == NULL || text[0] == '\0') return 0;
+    if (inet_pton(AF_INET, text, &addr) != 1) return 0;
+    return addr.s_addr != 0; /* 0.0.0.0 视为未获取到地址 */
+}
+
+static int set_ipv4_addr(const char *data,app_config_t *config) {
     char copy[AT_RESPONSE_MAX];
     char *line;
     char *saveptr1;
@@ -1519,6 +1527,10 @@ static void set_ipv4_addr(const char *data,app_config_t *config) {
                 token = strtok_r(NULL, ",", &saveptr2);
             }
             if (field_count == 6) {
+                if (!is_usable_ipv4(values[0])) {
+                    LOGF("IPUPDATE: DHCP response has no usable IPv4 address (%s)\n", values[0]);
+                    return 0;
+                }
                 printf("IPUPDATE IPV4: ip=%s mask=%s gw=%s dhcps=%s dns1=%s dns2=%s\n",
                      values[0], values[1], values[2], values[3], values[4], values[5]);
 
@@ -1536,11 +1548,12 @@ static void set_ipv4_addr(const char *data,app_config_t *config) {
                 FILE *fp = popen(cmd, "r");
                 if (fp) pclose(fp);
 
-                return;
+                return 1;
             }
         }
         line = strtok_r(NULL, "\r\n", &saveptr1);
     }
+    return 0;
 }
 
 static void set_ipv6_addr(const char *data, app_config_t *config) {
@@ -1695,6 +1708,59 @@ static int read_at_response_direct(app_state_t *app, at_response_t *response, in
     return -1;
 }
 
+/*
+ * IPv4 DHCP 获取策略：首次查询失败后主动重发 AT^DHCP? 重试 3 次，
+ * 前两次等待 5 秒、最后一次等待 15 秒；仍然失败则报错。
+ */
+#define DHCP_IPV4_RETRY_TOTAL 3
+
+static const unsigned int g_dhcp_ipv4_retry_wait[DHCP_IPV4_RETRY_TOTAL] = {5, 5, 15};
+
+typedef int (*ipv4_fetch_fn)(app_state_t *app, at_response_t *response);
+
+static int try_fetch_ipv4_direct(app_state_t *app, at_response_t *response) {
+    response->success = 0;
+    response->data[0] = '\0';
+    response->error[0] = '\0';
+
+    if (transport_write_all(&app->transport, "AT^DHCP?\r\n", 11) != 0) return 0;
+    if (read_at_response_direct(app, response, 3, "AT^DHCP?") != 0) return 0;
+    if (!response->success || response->data[0] == '\0') return 0;
+    return set_ipv4_addr(response->data, &app->config);
+}
+
+static int try_fetch_ipv4_sync(app_state_t *app, at_response_t *response) {
+    if (send_sync_command(app, "AT^DHCP?", response) != 0) return 0;
+    if (response->data[0] == '\0') return 0;
+    return set_ipv4_addr(response->data, &app->config);
+}
+
+static int acquire_ipv4_with_retry(app_state_t *app, at_response_t *response, ipv4_fetch_fn fetch) {
+    int attempt;
+
+    for (attempt = 0; attempt <= DHCP_IPV4_RETRY_TOTAL; attempt++) {
+        if (attempt > 0) {
+            unsigned int wait = g_dhcp_ipv4_retry_wait[attempt - 1];
+            printf("IPUPDATE: IPv4 not obtained, resending DHCP query (retry %d/%d) in %us\n",
+                   attempt, DHCP_IPV4_RETRY_TOTAL, wait);
+            fflush(stdout);
+            sleep(wait);
+        }
+        if (fetch(app, response)) {
+            printf("IPUPDATE: got IPv4 address\n");
+            fflush(stdout);
+            return 1;
+        }
+    }
+
+    printf("IPUPDATE ERROR: failed to obtain IPv4 address after %d DHCP retries\n",
+           DHCP_IPV4_RETRY_TOTAL);
+    fflush(stdout);
+    LOGF("IPUPDATE ERROR: failed to obtain IPv4 address after %d DHCP retries, last error: %s\n",
+         DHCP_IPV4_RETRY_TOTAL, response->error[0] ? response->error : "no response");
+    return 0;
+}
+
 static void do_port_update(app_state_t *app) {
     at_response_t *response;
     char buf[64];
@@ -1709,19 +1775,7 @@ static void do_port_update(app_state_t *app) {
     FILE *fp = popen(buf, "r");
     if (fp) pclose(fp);
 
-    for (int retry = 0; retry < 15 && !got_ipv4; retry++) {
-        if (retry > 0) {
-            LOGF("IPUPDATE: retry DHCP attempt %d/15\n", retry + 1);
-            sleep(1);
-        }
-        if (transport_write_all(&app->transport, "AT^DHCP?\r\n", 11) == 0 &&
-            read_at_response_direct(app, response, 3, "AT^DHCP?") == 0 &&
-            response->success && response->data[0]) {
-            printf("IPUPDATE: got DHCP response\n");
-            set_ipv4_addr(response->data, &app->config);
-            got_ipv4 = 1;
-        }
-    }
+    got_ipv4 = acquire_ipv4_with_retry(app, response, try_fetch_ipv4_direct);
 
     for (int retry = 0; retry < 15 && !got_ipv6; retry++) {
         if (retry > 0) {
@@ -1775,17 +1829,7 @@ static void do_port_update_sync(app_state_t *app) {
     FILE *fp = popen(buf, "r");
     if (fp) pclose(fp);
 
-    for (int retry = 0; retry < 15 && !got_ipv4; retry++) {
-        if (retry > 0) {
-            LOGF("IPUPDATE: retry DHCP attempt %d/15\n", retry + 1);
-            sleep(1);
-        }
-        if (send_sync_command(app, "AT^DHCP?", response) == 0 && response->data[0]) {
-            printf("IPUPDATE: got DHCP response\n");
-            set_ipv4_addr(response->data, &app->config);
-            got_ipv4 = 1;
-        }
-    }
+    got_ipv4 = acquire_ipv4_with_retry(app, response, try_fetch_ipv4_sync);
 
     for (int retry = 0; retry < 15 && !got_ipv6; retry++) {
         if (retry > 0) {
