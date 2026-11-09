@@ -383,6 +383,23 @@ static void transport_close(at_transport_t *transport) {
     pthread_mutex_destroy(&transport->write_mutex);
 }
 
+/*
+ * 丢弃连接建立前已经到达的数据，避免启动时把上一次会话的
+ * 残留响应（^NDISSTAT、^DHCPV6 等）当成新数据。
+ */
+static void transport_flush_input(at_transport_t *transport) {
+    char buf[256];
+
+    if (!transport->active) return;
+    if (isatty(transport->fd)) {
+        tcflush(transport->fd, TCIFLUSH);
+        LOGF("transport: flushed pending input (tty)\n");
+        return;
+    }
+    while (recv(transport->fd, buf, sizeof(buf), MSG_DONTWAIT) > 0) { }
+    LOGF("transport: flushed pending input (socket)\n");
+}
+
 static int transport_write_all(at_transport_t *transport, const char *buf, size_t len) {
     size_t offset = 0;
 
@@ -1556,7 +1573,19 @@ static int set_ipv4_addr(const char *data,app_config_t *config) {
     return 0;
 }
 
-static void set_ipv6_addr(const char *data, app_config_t *config) {
+static int is_usable_ipv6(const char *text) {
+    struct in6_addr addr;
+
+    if (text == NULL || text[0] == '\0') return 0;
+    if (inet_pton(AF_INET6, text, &addr) != 1) return 0;
+    if (IN6_IS_ADDR_UNSPECIFIED(&addr)) return 0; /* :: 视为未获取到地址 */
+    if (IN6_IS_ADDR_LOOPBACK(&addr)) return 0;
+    if (IN6_IS_ADDR_LINKLOCAL(&addr)) return 0;
+    if (IN6_IS_ADDR_MULTICAST(&addr)) return 0;
+    return 1;
+}
+
+static int set_ipv6_addr(const char *data, app_config_t *config) {
     char copy[AT_RESPONSE_MAX];
     char *line;
     char *saveptr1;
@@ -1573,12 +1602,13 @@ static void set_ipv6_addr(const char *data, app_config_t *config) {
             char *rest = line + 8;
             trim_space(rest);
             field_count = 0;
+            for (int i = 0; i < 6; i++) {
+                snprintf(values[i], sizeof(values[i]), "::");
+            }
             token = strtok_r(rest, ",", &saveptr2);
             while (token != NULL && field_count < 6) {
                 trim_space(token);
-                if (strcmp(token, "::") == 0) {
-                    snprintf(values[field_count], sizeof(values[field_count]), "::");
-                } else {
+                if (strcmp(token, "::") != 0) {
                     struct in6_addr addr;
                     if (inet_pton(AF_INET6, token, &addr) == 1) {
                         inet_ntop(AF_INET6, &addr, values[field_count], sizeof(values[field_count]));
@@ -1589,44 +1619,51 @@ static void set_ipv6_addr(const char *data, app_config_t *config) {
                 field_count++;
                 token = strtok_r(NULL, ",", &saveptr2);
             }
-            if (field_count >= 1) {
+            if (!is_usable_ipv6(values[0])) {
+                LOGF("IPUPDATE: DHCPV6 response has no usable IPv6 address (%s)\n", values[0]);
+                return 0;
+            }
+            {
                 char prefix_buf[INET6_ADDRSTRLEN];
                 struct in6_addr addr;
-                if (inet_pton(AF_INET6, values[0], &addr) == 1) {
-                    uint16_t hextets[8];
-                    for (int i = 0; i < 8; i++) {
-                        hextets[i] = (addr.s6_addr[i * 2] << 8) | addr.s6_addr[i * 2 + 1];
-                    }
-                    snprintf(prefix_buf, sizeof(prefix_buf),
-                             "%x:%x:%x:%x::/64",
-                             hextets[0], hextets[1], hextets[2], hextets[3]);
+                struct in6_addr gw_addr;
+                uint16_t hextets[8];
 
-                    printf("IPUPDATE IPV6: addr=%s netmask=%s gw=%s dhcp=%s pdns=%s sdns=%s\n",
-                         values[0], values[1], values[2], values[3], values[4], values[5]);
-                    printf("DHCPV6 prefix: %s\n", prefix_buf);
-
-                    char cmd[1024];
-                    snprintf(cmd, sizeof(cmd),
-                             "uci set network.%s.ip6prefix='%s' && "
-                             "uci set network.%s.ip6addr='%s'",
-                             config->wwan_interface, prefix_buf,
-                             config->wwan_interface, values[0]);
-                    if (field_count >= 3 && strcmp(values[2], "::") != 0) {
-                        char gw_cmd[256];
-                        snprintf(gw_cmd, sizeof(gw_cmd),
-                                 " && uci set network.%s.ip6gw='%s'",
-                                 config->wwan_interface, values[2]);
-                        strncat(cmd, gw_cmd, sizeof(cmd) - strlen(cmd) - 1);
-                    }
-                    LOGF("Running: %s\n", cmd);
-                    FILE *fp = popen(cmd, "r");
-                    if (fp) pclose(fp);
+                if (inet_pton(AF_INET6, values[0], &addr) != 1) return 0;
+                for (int i = 0; i < 8; i++) {
+                    hextets[i] = (addr.s6_addr[i * 2] << 8) | addr.s6_addr[i * 2 + 1];
                 }
-                return;
+                snprintf(prefix_buf, sizeof(prefix_buf),
+                         "%x:%x:%x:%x::/64",
+                         hextets[0], hextets[1], hextets[2], hextets[3]);
+
+                printf("IPUPDATE IPV6: addr=%s netmask=%s gw=%s dhcp=%s pdns=%s sdns=%s\n",
+                     values[0], values[1], values[2], values[3], values[4], values[5]);
+                printf("DHCPV6 prefix: %s\n", prefix_buf);
+
+                char cmd[1024];
+                snprintf(cmd, sizeof(cmd),
+                         "uci set network.%s.ip6prefix='%s' && "
+                         "uci set network.%s.ip6addr='%s'",
+                         config->wwan_interface, prefix_buf,
+                         config->wwan_interface, values[0]);
+                if (field_count >= 3 && strcmp(values[2], "::") != 0 &&
+                    inet_pton(AF_INET6, values[2], &gw_addr) == 1) {
+                    char gw_cmd[256];
+                    snprintf(gw_cmd, sizeof(gw_cmd),
+                             " && uci set network.%s.ip6gw='%s'",
+                             config->wwan_interface, values[2]);
+                    strncat(cmd, gw_cmd, sizeof(cmd) - strlen(cmd) - 1);
+                }
+                LOGF("Running: %s\n", cmd);
+                FILE *fp = popen(cmd, "r");
+                if (fp) pclose(fp);
+                return 1;
             }
         }
         line = strtok_r(NULL, "\r\n", &saveptr1);
     }
+    return 0;
 }
 
 static int read_at_response_direct(app_state_t *app, at_response_t *response, int timeout_sec, const char *cmd_echo) {
@@ -1761,14 +1798,137 @@ static int acquire_ipv4_with_retry(app_state_t *app, at_response_t *response, ip
     return 0;
 }
 
+/*
+ * IPv6 DHCP 获取策略：首次查询失败后重发 AT^DHCPV6?，共 3 次尝试；
+ * 第 2、3 次前分别等待 5 秒、10 秒；仍然失败则由调用方清空 ip6prefix/ip6addr。
+ */
+#define DHCP_IPV6_MAX_ATTEMPTS 3
+
+static const unsigned int g_dhcp_ipv6_retry_wait[DHCP_IPV6_MAX_ATTEMPTS - 1] = {5, 10};
+
+typedef int (*ipv6_fetch_fn)(app_state_t *app, at_response_t *response);
+
+static int try_fetch_ipv6_direct(app_state_t *app, at_response_t *response) {
+    response->success = 0;
+    response->data[0] = '\0';
+    response->error[0] = '\0';
+
+    if (transport_write_all(&app->transport, "AT^DHCPV6?\r\n", 13) != 0) return 0;
+    if (read_at_response_direct(app, response, 3, "AT^DHCPV6?") != 0) return 0;
+    if (!response->success || response->data[0] == '\0') return 0;
+    return set_ipv6_addr(response->data, &app->config);
+}
+
+static int try_fetch_ipv6_sync(app_state_t *app, at_response_t *response) {
+    if (send_sync_command(app, "AT^DHCPV6?", response) != 0) return 0;
+    if (response->data[0] == '\0') return 0;
+    return set_ipv6_addr(response->data, &app->config);
+}
+
+static int acquire_ipv6_with_retry(app_state_t *app, at_response_t *response, ipv6_fetch_fn fetch) {
+    int attempt;
+
+    for (attempt = 0; attempt < DHCP_IPV6_MAX_ATTEMPTS; attempt++) {
+        if (attempt > 0) {
+            unsigned int wait = g_dhcp_ipv6_retry_wait[attempt - 1];
+            printf("IPUPDATE: IPv6 not obtained, resending DHCPV6 query (attempt %d/%d) in %us\n",
+                   attempt + 1, DHCP_IPV6_MAX_ATTEMPTS, wait);
+            fflush(stdout);
+            sleep(wait);
+        }
+        if (fetch(app, response)) {
+            printf("IPUPDATE: got IPv6 address\n");
+            fflush(stdout);
+            return 1;
+        }
+    }
+
+    printf("IPUPDATE: failed to obtain IPv6 address after %d DHCPV6 attempts\n",
+           DHCP_IPV6_MAX_ATTEMPTS);
+    fflush(stdout);
+    LOGF("IPUPDATE: failed to obtain IPv6 address after %d DHCPV6 attempts, last error: %s\n",
+         DHCP_IPV6_MAX_ATTEMPTS, response->error[0] ? response->error : "no response");
+    return 0;
+}
+
+/* 读取 network.<if>.<key>，为空或不存在时返回 0。 */
+static int uci_get_nonempty(app_config_t *config, const char *key, char *out, size_t out_size) {
+    char cmd[256];
+    FILE *fp;
+
+    out[0] = '\0';
+    snprintf(cmd, sizeof(cmd), "uci -q get network.%s.%s 2>/dev/null",
+             config->wwan_interface, key);
+    fp = popen(cmd, "r");
+    if (fp == NULL) return 0;
+    if (fgets(out, (int) out_size, fp) != NULL) {
+        trim_eol(out);
+        trim_space(out);
+    }
+    pclose(fp);
+    return out[0] != '\0';
+}
+
+/* IPv6 获取失败时清空上一条连接残留的 ip6prefix/ip6addr/ip6gw。 */
+static int clear_ipv6_if_stale(app_config_t *config) {
+    char value[128];
+    int has_prefix;
+    int has_addr;
+    int has_gw;
+    char cmd[512];
+    FILE *fp;
+
+    has_prefix = uci_get_nonempty(config, "ip6prefix", value, sizeof(value));
+    has_addr = uci_get_nonempty(config, "ip6addr", value, sizeof(value));
+    has_gw = uci_get_nonempty(config, "ip6gw", value, sizeof(value));
+
+    if (!has_prefix && !has_addr && !has_gw) return 0;
+
+    snprintf(cmd, sizeof(cmd),
+             "uci -q delete network.%s.ip6prefix && "
+             "uci -q delete network.%s.ip6addr && "
+             "uci -q delete network.%s.ip6gw",
+             config->wwan_interface, config->wwan_interface, config->wwan_interface);
+    LOGF("IPUPDATE: clearing stale IPv6 config: %s\n", cmd);
+    printf("IPUPDATE: IPv6 unavailable, cleared stale ip6prefix/ip6addr\n");
+    fflush(stdout);
+    fp = popen(cmd, "r");
+    if (fp) pclose(fp);
+    return 1;
+}
+
+/*
+ * 启动更新（独立线程）与 URC 更新（reader 线程）不能同时操作 AT 通道。
+ * reader 线程不能阻塞等锁，否则 sync 更新等不到 AT 响应会死锁，所以用 CAS 跳过。
+ */
+static int g_ipupdate_busy = 0;
+
+static int ipupdate_begin(const char *source) {
+    if (__atomic_exchange_n(&g_ipupdate_busy, 1, __ATOMIC_ACQ_REL)) {
+        printf("IPUPDATE: %s skipped, another update is running\n", source);
+        fflush(stdout);
+        return 0;
+    }
+    return 1;
+}
+
+static void ipupdate_end(void) {
+    __atomic_store_n(&g_ipupdate_busy, 0, __ATOMIC_RELEASE);
+}
+
 static void do_port_update(app_state_t *app) {
     at_response_t *response;
     char buf[64];
     int got_ipv4 = 0;
     int got_ipv6 = 0;
+    int ipv6_cleared = 0;
 
     response = (at_response_t *) calloc(1, sizeof(*response));
     if (response == NULL) return;
+    if (!ipupdate_begin("URC")) {
+        free(response);
+        return;
+    }
 
     snprintf(buf, sizeof(buf), "ifdown %s", app->config.wwan_interface);
     LOGF("IPUPDATE: %s\n", buf);
@@ -1777,42 +1937,24 @@ static void do_port_update(app_state_t *app) {
 
     got_ipv4 = acquire_ipv4_with_retry(app, response, try_fetch_ipv4_direct);
 
-    for (int retry = 0; retry < 15 && !got_ipv6; retry++) {
-        if (retry > 0) {
-            LOGF("IPUPDATE: retry DHCPV6 attempt %d/15\n", retry + 1);
-            sleep(1);
-        }
-        if (transport_write_all(&app->transport, "AT^DHCPV6?\r\n", 13) == 0 &&
-            read_at_response_direct(app, response, 3, "AT^DHCPV6?") == 0 &&
-            response->success && response->data[0]) {
-            printf("IPUPDATE: got DHCPV6 response\n");
-            set_ipv6_addr(response->data, &app->config);
-            got_ipv6 = 1;
-        }
+    got_ipv6 = acquire_ipv6_with_retry(app, response, try_fetch_ipv6_direct);
+    if (!got_ipv6) {
+        ipv6_cleared = clear_ipv6_if_stale(&app->config);
     }
 
-    if (got_ipv4 || got_ipv6) {
+    if (got_ipv4 || got_ipv6 || ipv6_cleared) {
         fp = popen("uci commit network", "r");
         if (fp) pclose(fp);
+    }
+    if (got_ipv4 || got_ipv6) {
         snprintf(buf, sizeof(buf), "ifup %s", app->config.wwan_interface);
         LOGF("IPUPDATE: %s\n", buf);
         printf("IPUPDATE: Done\n");
         fp = popen(buf, "r");
         if (fp) pclose(fp);
     }
+    ipupdate_end();
     free(response);
-}
-
-static double get_uptime_seconds(void) {
-    FILE *fp = fopen("/proc/uptime", "r");
-    if (fp == NULL) return -1;
-    double uptime;
-    if (fscanf(fp, "%lf", &uptime) != 1) {
-        fclose(fp);
-        return -1;
-    }
-    fclose(fp);
-    return uptime;
 }
 
 static void do_port_update_sync(app_state_t *app) {
@@ -1820,9 +1962,14 @@ static void do_port_update_sync(app_state_t *app) {
     char buf[64];
     int got_ipv4 = 0;
     int got_ipv6 = 0;
+    int ipv6_cleared = 0;
 
     response = (at_response_t *) calloc(1, sizeof(*response));
     if (response == NULL) return;
+    if (!ipupdate_begin("startup")) {
+        free(response);
+        return;
+    }
 
     snprintf(buf, sizeof(buf), "ifdown %s", app->config.wwan_interface);
     LOGF("IPUPDATE: %s\n", buf);
@@ -1831,60 +1978,47 @@ static void do_port_update_sync(app_state_t *app) {
 
     got_ipv4 = acquire_ipv4_with_retry(app, response, try_fetch_ipv4_sync);
 
-    for (int retry = 0; retry < 15 && !got_ipv6; retry++) {
-        if (retry > 0) {
-            LOGF("IPUPDATE: retry DHCPV6 attempt %d/15\n", retry + 1);
-            sleep(1);
-        }
-        if (send_sync_command(app, "AT^DHCPV6?", response) == 0 && response->data[0]) {
-            printf("IPUPDATE: got DHCPV6 response\n");
-            set_ipv6_addr(response->data, &app->config);
-            got_ipv6 = 1;
-        }
+    got_ipv6 = acquire_ipv6_with_retry(app, response, try_fetch_ipv6_sync);
+    if (!got_ipv6) {
+        ipv6_cleared = clear_ipv6_if_stale(&app->config);
     }
 
-    if (got_ipv4 || got_ipv6) {
+    if (got_ipv4 || got_ipv6 || ipv6_cleared) {
         fp = popen("uci commit network", "r");
         if (fp) pclose(fp);
+    }
+    if (got_ipv4 || got_ipv6) {
         snprintf(buf, sizeof(buf), "ifup %s", app->config.wwan_interface);
         LOGF("IPUPDATE: %s\n", buf);
         printf("IPUPDATE: Done\n");
         fp = popen(buf, "r");
         if (fp) pclose(fp);
     }
+    ipupdate_end();
     free(response);
 }
 
-static void *startup_timer_thread(void *arg) {
+static void *startup_update_thread(void *arg) {
     app_state_t *app = (app_state_t *) arg;
-    double uptime = get_uptime_seconds();
-    if (uptime >= 0) {
-        double sleep_needed = 40.0 - uptime;
-        if (sleep_needed > 0) {
-            printf("IPUPDATE: startup timer - waiting %.0fs for 40s post-boot\n", sleep_needed);
-            sleep((unsigned int) sleep_needed);
-        } else {
-            printf("IPUPDATE: startup timer - already past 40s post-boot, executing now\n");
-        }
-    } else {
-        printf("IPUPDATE: startup timer - cannot read /proc/uptime, falling back to 40s delay\n");
-        sleep(40);
-    }
+
     if (!app->config.ip_update_enable) {
-        printf("IPUPDATE: startup timer - ip_update disabled\n");
+        printf("IPUPDATE: startup - ip_update disabled\n");
         return NULL;
     }
-    printf("IPUPDATE: startup timer - executing port update\n");
+    printf("IPUPDATE: startup - running initial port update\n");
+    fflush(stdout);
     do_port_update_sync(app);
     return NULL;
 }
 
 void notify_port_update(app_state_t *app, const char *line) {
     if (strncmp(line, "^NDISSTAT: 1,1,,,\"IPV6\"" , 24) == 0) {
+        /*
         if (g_start_time > 0 && time(NULL) - g_start_time < 3) {
             printf("IPUPDATE: ignored (within 3s of startup)\n");
             return;
         }
+        */
         if (!app->config.ip_update_enable) {
             printf("IPUPDATE: ip_update disabled\n");
             return;
@@ -2408,7 +2542,7 @@ int main(void) {
     pthread_t dispatch_tid;
     pthread_t heartbeat_tid;
     pthread_t sms_worker_tid;
-    pthread_t startup_timer_tid;
+    pthread_t startup_update_tid;
     int server_fd_v4;
     int server_fd_v6;
 
@@ -2446,12 +2580,14 @@ int main(void) {
         }
     }
 
+    transport_flush_input(&g_app.transport);
+
     pthread_create(&reader_tid, NULL, reader_thread, &g_app);
     init_modem(&g_app);
     pthread_create(&dispatch_tid, NULL, dispatch_thread, &g_app);
     pthread_create(&heartbeat_tid, NULL, heartbeat_thread, NULL);
     pthread_create(&sms_worker_tid, NULL, sms_worker_thread, &g_app);
-    pthread_create(&startup_timer_tid, NULL, startup_timer_thread, &g_app);
+    pthread_create(&startup_update_tid, NULL, startup_update_thread, &g_app);
 
     server_fd_v4 = start_websocket_server(&g_app.config);
     server_fd_v6 = start_websocket_server_v6(&g_app.config);
@@ -2464,7 +2600,7 @@ int main(void) {
         pthread_join(dispatch_tid, NULL);
         pthread_join(heartbeat_tid, NULL);
         pthread_join(sms_worker_tid, NULL);
-        pthread_join(startup_timer_tid, NULL);
+        pthread_join(startup_update_tid, NULL);
         transport_close(&g_app.transport);
         return 1;
     }
@@ -2531,7 +2667,7 @@ int main(void) {
     pthread_join(dispatch_tid, NULL);
     pthread_join(heartbeat_tid, NULL);
     pthread_join(sms_worker_tid, NULL);
-    pthread_join(startup_timer_tid, NULL);
+    pthread_join(startup_update_tid, NULL);
     transport_close(&g_app.transport);
     return 0;
 }
