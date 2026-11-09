@@ -19,6 +19,9 @@
 
 #define WS_MAX_CLIENTS 16
 #define WS_TEXT_MAX 4096
+/* WebSocket 监听失败后的重试策略：最多尝试 N 次，每次间隔 DELAY 秒 */
+#define WS_START_MAX_ATTEMPTS 3
+#define WS_START_RETRY_DELAY_SEC 2
 #define AT_LINE_MAX 4096
 #define AT_RESPONSE_MAX 65536
 #define AT_READ_BUF 2048
@@ -2416,6 +2419,7 @@ static int start_websocket_server(const app_config_t *config) {
     if (strcmp(config->websocket_host, "0.0.0.0") == 0 || strcmp(config->websocket_host, "*") == 0) {
         addr.sin_addr.s_addr = INADDR_ANY;
     } else if (inet_pton(AF_INET, config->websocket_host, &addr.sin_addr) <= 0) {
+        errno = EINVAL;
         close(fd);
         return -1;
     }
@@ -2446,6 +2450,7 @@ static int start_websocket_server_v6(const app_config_t *config) {
     if (strcmp(config->websocket_host_v6, "::") == 0 || strcmp(config->websocket_host_v6, "*") == 0) {
         addr6.sin6_addr = in6addr_any;
     } else if (inet_pton(AF_INET6, config->websocket_host_v6, &addr6.sin6_addr) <= 0) {
+        errno = EINVAL;
         close(fd);
         return -1;
     }
@@ -2459,6 +2464,55 @@ static int start_websocket_server_v6(const app_config_t *config) {
         return -1;
     }
     return fd;
+}
+
+/*
+ * 启动 IPv4/IPv6 两个 WebSocket 监听端口。只要有一个监听成功就算启动成功；
+ * 两者都失败时最多重试 WS_START_MAX_ATTEMPTS 次（每次间隔 WS_START_RETRY_DELAY_SEC 秒），
+ * 全部失败或收到退出信号则返回 -1。
+ * 典型失败原因是上电时端口尚未释放/网络栈未就绪，短暂重试可以避免服务直接退出。
+ */
+static int start_websocket_servers(const app_config_t *config, int *fd_v4, int *fd_v6) {
+    int error_v4 = 0;
+    int error_v6 = 0;
+
+    for (int attempt = 1; attempt <= WS_START_MAX_ATTEMPTS; ++attempt) {
+        if (!g_app.running) return -1;
+
+        *fd_v4 = start_websocket_server(config);
+        if (*fd_v4 < 0) error_v4 = errno;
+        *fd_v6 = start_websocket_server_v6(config);
+        if (*fd_v6 < 0) error_v6 = errno;
+
+        if (*fd_v4 >= 0 || *fd_v6 >= 0) {
+            if (attempt > 1) {
+                fprintf(stderr, "websocket server: started on attempt %d/%d\n",
+                        attempt, WS_START_MAX_ATTEMPTS);
+            }
+            return 0;
+        }
+
+        if (attempt < WS_START_MAX_ATTEMPTS) {
+            fprintf(stderr,
+                    "websocket server: listen on port %d failed "
+                    "(ipv4: %s, ipv6: %s), attempt %d/%d, retrying in %d s\n",
+                    config->websocket_port,
+                    error_v4 != 0 ? strerror(error_v4) : "invalid listen address",
+                    error_v6 != 0 ? strerror(error_v6) : "invalid listen address",
+                    attempt, WS_START_MAX_ATTEMPTS, WS_START_RETRY_DELAY_SEC);
+            sleep(WS_START_RETRY_DELAY_SEC);
+        } else {
+            fprintf(stderr,
+                    "websocket server: listen on port %d failed "
+                    "(ipv4: %s, ipv6: %s), giving up after %d attempts\n",
+                    config->websocket_port,
+                    error_v4 != 0 ? strerror(error_v4) : "invalid listen address",
+                    error_v6 != 0 ? strerror(error_v6) : "invalid listen address",
+                    WS_START_MAX_ATTEMPTS);
+        }
+    }
+
+    return -1;
 }
 
 static void uci_apply_line(app_config_t *config, const char *line) {
@@ -2608,10 +2662,8 @@ int main(void) {
     pthread_create(&sms_worker_tid, NULL, sms_worker_thread, &g_app);
     pthread_create(&startup_update_tid, NULL, startup_update_thread, &g_app);
 
-    server_fd_v4 = start_websocket_server(&g_app.config);
-    server_fd_v6 = start_websocket_server_v6(&g_app.config);
-    if (server_fd_v4 < 0 && server_fd_v6 < 0) {
-        perror("start websocket server");
+    if (start_websocket_servers(&g_app.config, &server_fd_v4, &server_fd_v6) < 0) {
+        fprintf(stderr, "websocket server: startup failed, exiting\n");
         g_app.running = 0;
         pthread_cond_broadcast(&g_app.queue.cond);
         pthread_cond_broadcast(&g_app.sms_queue.cond);
