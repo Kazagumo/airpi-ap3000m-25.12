@@ -33,6 +33,7 @@ typedef struct {
     int enabled;
     int connection_type;
     int ip_update_enable;
+    int custom_dns;
     char wwan_interface[64];
     char network_host[64];
     int network_port;
@@ -149,6 +150,7 @@ static void set_defaults(app_config_t *config) {
     config->enabled = 1;
     config->connection_type = AT_TYPE_NETWORK;
     config->ip_update_enable = 0;
+    config->custom_dns = 0;
     snprintf(config->wwan_interface, sizeof(config->wwan_interface), "wwan");
     snprintf(config->network_host, sizeof(config->network_host), "192.168.8.1");
     config->network_port = 20249;
@@ -178,6 +180,8 @@ static void print_config(const app_config_t *config) {
     LOGF("websocket auth: %s\n", config->websocket_auth_key[0] ? "enabled" : "disabled");
     LOGF("wechat webhook: %s\n", config->wechat_webhook[0] ? "enabled" : "disabled");
     LOGF("log file: %s\n", config->log_file[0] ? config->log_file : "disabled");
+    LOGF("ip update: enabled=%d interface=%s custom_dns=%d\n",
+         config->ip_update_enable, config->wwan_interface, config->custom_dns);
     LOGF("notify: sms=%d call=%d memory_full=%d signal=%d\n",
          config->notify_sms, config->notify_call, config->notify_memory_full, config->notify_signal);
 }
@@ -1552,15 +1556,28 @@ static int set_ipv4_addr(const char *data,app_config_t *config) {
                      values[0], values[1], values[2], values[3], values[4], values[5]);
 
                 char cmd[1024];
-                snprintf(cmd, sizeof(cmd),
-                         "uci set network.%s.ipaddr='%s' && "
-                         "uci set network.%s.netmask='%s' && "
-                         "uci set network.%s.gateway='%s' && "
-                         "uci set network.%s.dns='%s %s'",
-                         config->wwan_interface, values[0],
-                         config->wwan_interface, values[1],
-                         config->wwan_interface, values[2],
-                         config->wwan_interface, values[4], values[5]);
+                if (config->custom_dns) {
+                    snprintf(cmd, sizeof(cmd),
+                             "uci set network.%s.ipaddr='%s' && "
+                             "uci set network.%s.netmask='%s' && "
+                             "uci set network.%s.gateway='%s'",
+                             config->wwan_interface, values[0],
+                             config->wwan_interface, values[1],
+                             config->wwan_interface, values[2]);
+                    printf("IPUPDATE: custom DNS enabled, leaving network.%s.dns untouched\n",
+                           config->wwan_interface);
+                    fflush(stdout);
+                } else {
+                    snprintf(cmd, sizeof(cmd),
+                             "uci set network.%s.ipaddr='%s' && "
+                             "uci set network.%s.netmask='%s' && "
+                             "uci set network.%s.gateway='%s' && "
+                             "uci set network.%s.dns='%s %s'",
+                             config->wwan_interface, values[0],
+                             config->wwan_interface, values[1],
+                             config->wwan_interface, values[2],
+                             config->wwan_interface, values[4], values[5]);
+                }
                 LOGF("Running: %s\n", cmd);
                 FILE *fp = popen(cmd, "r");
                 if (fp) pclose(fp);
@@ -2477,6 +2494,8 @@ static void uci_apply_line(app_config_t *config, const char *line) {
         config->connection_type = (strcmp(val_buf, "SERIAL") == 0) ? AT_TYPE_SERIAL : AT_TYPE_NETWORK;
     } else if (strcmp(key_buf, "ip_update_enable") == 0) {
         config->ip_update_enable = atoi(val_buf);
+    } else if (strcmp(key_buf, "custom_dns") == 0) {
+        config->custom_dns = atoi(val_buf);
     } else if (strcmp(key_buf, "wwan_interface") == 0) {
         snprintf(config->wwan_interface, sizeof(config->wwan_interface), "%s", val_buf);
     } else if (strcmp(key_buf, "wwan_interface_custom") == 0) {

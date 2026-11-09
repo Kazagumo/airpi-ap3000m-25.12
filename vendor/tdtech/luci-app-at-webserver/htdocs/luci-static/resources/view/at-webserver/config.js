@@ -153,6 +153,13 @@ return view.extend({
 	o.placeholder = 'wwan';
 	o.rmempty = false;
 
+	o = s.option(form.Flag, 'custom_dns', _('使用自定义 DNS'),
+		_('开启后 IP 自动更新只写入 IP/掩码/网关，不再改写接口的 dns 配置（network.&lt;接口&gt;.dns）。<br>' +
+		  '请先在接口“高级设置”中填写自定义 DNS，否则可能无 DNS 可用。'));
+	o.default = '0';
+	o.rmempty = false;
+	o.depends('ip_update_enable', '1');
+
 	// 模块访问安全配置（始终显示，但仅在网络连接模式下生效）
 	o = s.option(form.DummyValue, '_module_security_title', _('模块访问安全'));
 	o.rawhtml = true;
